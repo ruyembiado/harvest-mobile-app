@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
-import { View, ScrollView, Alert, Text } from "react-native";
+import { View, ScrollView, Alert, Text, TouchableOpacity } from "react-native";
 import { Button, PaperProvider, ActivityIndicator } from "react-native-paper";
+import { FontAwesome } from "@expo/vector-icons";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
 import { useRiceLand } from "../../context/RiceLandContext";
@@ -8,7 +9,7 @@ import api from "@/services/api";
 import { Link, useLocalSearchParams, useFocusEffect } from "expo-router";
 
 const NotesScreen: React.FC = () => {
-  const { riceLandId } = useRiceLand();
+  const { riceLandId, setRiceLandId } = useRiceLand();
   const [loading, setLoading] = useState<boolean>(false);
   const [notes, setNotes] = useState<Array<any>>([]);
   const { id } = useLocalSearchParams();
@@ -16,11 +17,8 @@ const NotesScreen: React.FC = () => {
 
   const fetchNotes = async () => {
     setLoading(true);
-
     if (!ID) {
-      console.warn("No riceLandId or id found, skipping fetch.");
-      setLoading(false);
-      return;
+      console.warn("No riceLandId or id found, but proceeding with fetch.");
     }
 
     try {
@@ -34,6 +32,31 @@ const NotesScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const deleteNote = async (noteId: number) => {
+    Alert.alert("Confirm", "Are you sure you want to delete this note?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        onPress: async () => {
+          try {
+            setLoading(true);
+            await api.delete(`/delete_note/${noteId}/`);
+            Alert.alert("Success", "Note deleted successfully.");
+            fetchNotes(); // Refresh notes after deletion
+          } catch (error) {
+            console.error("Error deleting note:", error);
+            Alert.alert("Error", "Failed to delete note.");
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
   };
 
   useFocusEffect(
@@ -59,7 +82,7 @@ const NotesScreen: React.FC = () => {
       <View
         style={[
           GlobalStyles.container,
-          { alignItems: "center", width: "100%", paddingTop: 10, },
+          { alignItems: "center", paddingTop: 10 },
         ]}
       >
         <Button
@@ -67,7 +90,6 @@ const NotesScreen: React.FC = () => {
           style={{
             marginTop: 5,
             marginBottom: 15,
-            marginEnd: 0,
             width: 150,
             alignSelf: "flex-end",
             backgroundColor: "#00009F",
@@ -78,10 +100,7 @@ const NotesScreen: React.FC = () => {
           </Link>
         </Button>
         <ScrollView
-          contentContainerStyle={[
-            GlobalStyles.RiceLandScrollContainer,
-            { paddingBottom: 10 },
-          ]}
+          contentContainerStyle={GlobalStyles.RiceLandScrollContainer}
           showsVerticalScrollIndicator={false}
         >
           {notes.length > 0 ? (
@@ -101,27 +120,46 @@ const NotesScreen: React.FC = () => {
                   key={note.id}
                   style={[
                     GlobalStyles.Weathercard,
-                    { width: 330, marginTop: 0, marginBottom: 0 },
+                    { width: 330, marginBottom: 10 },
                   ]}
                 >
-                  <Text style={[GlobalStyles.label]}>{note.title}</Text>
-                  {contentArray.length > 0 ? (
-                    contentArray.map((item, index) => (
-                      <Text key={index} style={[GlobalStyles.dataText]}>
-                        - {item}
-                      </Text>
-                    ))
-                  ) : (
-                    <Text style={[GlobalStyles.dataText]}>
+                  <Text style={GlobalStyles.label}>{note.title}</Text>
+                  {contentArray.map((item, index) => (
+                    <Text key={index} style={GlobalStyles.dataText}>
+                      - {item}
+                    </Text>
+                  ))}
+                  {contentArray.length === 0 && (
+                    <Text style={GlobalStyles.dataText}>
                       No content available.
                     </Text>
                   )}
+
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 10,
+                      right: 10,
+                      flexDirection: "row",
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={() => deleteNote(note.id)}
+                      style={{ marginRight: 10 }}
+                    >
+                      <FontAwesome name="trash" size={20} color="#D32F2F" />
+                    </TouchableOpacity>
+
+                    <Link href={`/(notes)/update_note?id=${note.id}`}>
+                      <FontAwesome name="pencil" size={20} color="#00009F" />
+                    </Link>
+                  </View>
                 </View>
               );
             })
           ) : (
-            <View style={[GlobalStyles.noDataTextContainer]}>
-              <Text style={[GlobalStyles.dataText]}>No note available.</Text>
+            <View style={GlobalStyles.noDataTextContainer}>
+              <Text style={GlobalStyles.dataText}>No notes available.</Text>
             </View>
           )}
         </ScrollView>

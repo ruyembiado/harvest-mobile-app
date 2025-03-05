@@ -34,7 +34,7 @@ class NoteController extends Controller
             $validatedData = $request->validate([
                 'rice_land_id' => 'required',
                 'title' => 'required',
-                'content' => 'required|array', 
+                'content' => 'required|array',
             ]);
 
             // Ensure content is stored as JSON
@@ -56,6 +56,20 @@ class NoteController extends Controller
         }
     }
 
+    public function get_note($id)
+    {
+        try {
+            $note = Note::find($id);
+
+            if (!$note) {
+                return response()->json(['message' => 'Note not found'], 404);
+            }
+
+            return response()->json($note, 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to fetch note', 'error' => $e->getMessage()], 500);
+        }
+    }
 
     /**
      * Display the specified resource.
@@ -76,9 +90,28 @@ class NoteController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Note $note)
+    public function update(Request $request, $id)
     {
-        //
+        try {
+            $note = Note::find($id);
+
+            if (!$note) {
+                return response()->json(['message' => 'Note not found'], 404);
+            }
+
+            $request->validate([
+                'title' => 'required|string|max:255',
+                'content' => 'required|string',
+            ]);
+
+            $note->title = $request->title;
+            $note->content = $request->content;
+            $note->save();
+
+            return response()->json(['message' => 'Note updated successfully', 'note' => $note], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to update note', 'error' => $e->getMessage()], 500);
+        }
     }
 
     /**
@@ -86,6 +119,11 @@ class NoteController extends Controller
      */
     public function destroy(Note $note)
     {
-        //
+        try {
+            $note->delete();
+            return response()->json(['message' => 'Note deleted successfully.'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Failed to delete note.', 'error' => $e->getMessage()], 500);
+        }
     }
 }

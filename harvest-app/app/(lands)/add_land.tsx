@@ -21,8 +21,11 @@ const AddLand: React.FC = () => {
   const [rice_land_lat, setRiceLandLat] = React.useState<string>("");
   const [rice_land_long, setRiceLandLong] = React.useState<string>("");
   const [rice_land_size, setRiceLandSize] = React.useState<string>("");
-  const [rice_land_condition, setRiceLandCondition] = React.useState<string>("");
-  const [rice_land_current_stage, setRiceLandStage] = React.useState<string>("Not Yet Started");
+  const [rice_land_size_sqm, setRiceLandSizeSQM] = React.useState<string>("");
+  const [rice_land_condition, setRiceLandCondition] =
+    React.useState<string>("");
+  const [rice_land_current_stage, setRiceLandStage] =
+    React.useState<string>("Not Yet Started");
   const [loading, setLoading] = React.useState<boolean>(false);
   const [locationLoading, setLocationLoading] = React.useState<boolean>(false);
   const router = useRouter();
@@ -63,7 +66,7 @@ const AddLand: React.FC = () => {
       alert("Location coordinates are required.");
       return;
     }
-    if (!rice_land_size) {
+    if (!rice_land_size && rice_land_size_sqm) {
       alert("Size of the land is required.");
       return;
     }
@@ -79,13 +82,14 @@ const AddLand: React.FC = () => {
       if (!user_id) {
         return;
       }
-      
+
       const response = await api.post("/add_rice_land", {
         user_id,
         rice_land_name,
         rice_land_lat,
         rice_land_long,
         rice_land_size,
+        rice_land_size_sqm,
         rice_land_condition,
         rice_land_current_stage,
       });
@@ -160,11 +164,22 @@ const AddLand: React.FC = () => {
           </View>
 
           <View>
-            <Text>Size of the Land (hectares):</Text>
+            <Text>Size of the Land in hectares (optional):</Text>
             <TextInput
               label="Enter size of the land (hectares)"
               value={rice_land_size}
               onChangeText={setRiceLandSize}
+              mode="outlined"
+              style={GlobalStyles.input}
+              keyboardType="numeric"
+            />
+          </View>
+          <View>
+            <Text>Size of the Land in square meter(sqm) (optional):</Text>
+            <TextInput
+              label="Enter size of the land (sqm)"
+              value={rice_land_size_sqm}
+              onChangeText={setRiceLandSizeSQM}
               mode="outlined"
               style={GlobalStyles.input}
               keyboardType="numeric"

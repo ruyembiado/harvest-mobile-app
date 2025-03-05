@@ -1,4 +1,4 @@
-import { View, Alert } from "react-native";
+import { View, Alert, ScrollView } from "react-native";
 import { useRouter, useLocalSearchParams, Link } from "expo-router";
 import React, { useState, useEffect } from "react";
 import api from "@/services/api";
@@ -27,6 +27,7 @@ export default function Index() {
   const [rice_land_lat, setRiceLandLat] = React.useState<string>("");
   const [rice_land_long, setRiceLandLong] = React.useState<string>("");
   const [rice_land_size, setRiceLandSize] = React.useState<string>("");
+  const [rice_land_size_sqm, setRiceLandSizeSQM] = React.useState<string>("");
   const [rice_land_condition, setRiceLandCondition] =
     React.useState<string>("");
   const [rice_land_current_stage, setRiceLandStage] =
@@ -136,6 +137,7 @@ export default function Index() {
       setRiceLandLat(data.rice_land_lat);
       setRiceLandLong(data.rice_land_long);
       setRiceLandSize(data.rice_land_size);
+      setRiceLandSizeSQM(data.rice_land_size_sqm);
       setRiceLandCondition(data.rice_land_condition);
       setRiceLandStage(data.rice_land_current_stage);
       setRiceVarietyName(data.rice_variety_name);
@@ -211,124 +213,142 @@ export default function Index() {
 
   return (
     <PaperProvider theme={customTheme}>
-      <View
-        style={[
-          GlobalStyles.container,
-          { alignItems: "center", justifyContent: "center" },
-        ]}
+      <ScrollView
+        contentContainerStyle={[GlobalStyles.RiceLandScrollContainer, { flexGrow: 1 }]}
+        showsVerticalScrollIndicator={false}
       >
-        {loading ? (
-          <View style={GlobalStyles.loadingContainer}>
-            <ActivityIndicator
-              animating={true}
-              size="large"
-              color={GlobalStyles.activityIndicator.color}
-            />
-          </View>
-        ) : (
-          <>
-            {weatherLoading ? (
-              <View style={GlobalStyles.loadingContainer}>
-                <ActivityIndicator
-                  animating={true}
-                  size="large"
-                  color={GlobalStyles.activityIndicator.color}
-                />
-              </View>
-            ) : weatherData ? (
-              <>
-                <View
-                  style={{
-                    flexDirection: "column",
-                    alignItems: "flex-end",
-                    justifyContent: "center",
-                    alignSelf: "flex-end",
-                    marginBottom: 10,
-                  }}
-                >
+        <View
+          style={[
+            GlobalStyles.container,
+            { alignItems: "center", justifyContent: "center" },
+          ]}
+        >
+          {loading ? (
+            <View style={GlobalStyles.loadingContainer}>
+              <ActivityIndicator
+                animating={true}
+                size="large"
+                color={GlobalStyles.activityIndicator.color}
+              />
+            </View>
+          ) : (
+            <>
+              {weatherLoading ? (
+                <View style={GlobalStyles.loadingContainer}>
+                  <ActivityIndicator
+                    animating={true}
+                    size="large"
+                    color={GlobalStyles.activityIndicator.color}
+                  />
+                </View>
+              ) : weatherData ? (
+                <>
                   <View
                     style={{
-                      flexDirection: "row",
-                      alignItems: "center",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
                       justifyContent: "center",
+                      alignSelf: "flex-end",
+                      marginBottom: 10,
                     }}
                   >
-                    <Text style={[GlobalStyles.dataText]}>{formattedDate}</Text>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={[GlobalStyles.dataText]}>
+                        {formattedDate}
+                      </Text>
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 5,
+                      }}
+                    >
+                      <Icon
+                        name={getWeatherIcon(weatherData.weathercode)}
+                        size={40}
+                        color="#FFD700"
+                      />
+                      <Text style={[GlobalStyles.dataText, { fontSize: 28 }]}>
+                        {weatherData.temperature}°C
+                      </Text>
+                    </View>
                   </View>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 5,
-                    }}
-                  >
-                    <Icon
-                      name={getWeatherIcon(weatherData.weathercode)}
-                      size={40}
-                      color="#FFD700"
-                    />
-                    <Text style={[GlobalStyles.dataText, { fontSize: 28 }]}>
-                      {weatherData.temperature}°C
+                  <View style={[GlobalStyles.mainDetailContainer]}>
+                    <Text style={GlobalStyles.label}>LOCATION:</Text>
+                    <Text style={[GlobalStyles.dataText]}>{placeName}</Text>
+                  </View>
+                  <View style={[GlobalStyles.mainDetailContainer]}>
+                    <Text style={GlobalStyles.label}>
+                      LAND SIZE (hectares):
+                    </Text>
+                    <Text style={[GlobalStyles.dataText]}>
+                      {rice_land_size || 0} Hectares
                     </Text>
                   </View>
-                </View>
-                <View style={[GlobalStyles.mainDetailContainer]}>
-                  <Text style={GlobalStyles.label}>LOCATION:</Text>
-                  <Text style={[GlobalStyles.dataText]}>{placeName}</Text>
-                </View>
-                <View style={[GlobalStyles.mainDetailContainer]}>
-                  <Text style={GlobalStyles.label}>LAND SIZE:</Text>
-                  <Text style={[GlobalStyles.dataText]}>
-                    {rice_land_size} Hectares
-                  </Text>
-                </View>
-                <View style={[GlobalStyles.mainDetailContainer]}>
-                  <Text style={GlobalStyles.label}>LAND CODITION:</Text>
-                  <Text style={GlobalStyles.dataText}>
-                    {riceLandConditions.find(
-                      (condition) => condition.value === rice_land_condition
-                    )?.label || "Not available"}
-                  </Text>
-                </View>
-                <View style={[GlobalStyles.mainDetailContainer]}>
-                  <Text style={GlobalStyles.label}>RICE GROWTH:</Text>
-                  <Text style={GlobalStyles.dataText}>
-                    {riceLandStages.find(
-                      (stage) => stage.value === rice_land_current_stage
-                    )?.label || "Not available"}
-                  </Text>
-                </View>
-                <Button
-                  icon="seed"
-                  mode="contained"
-                  style={[GlobalStyles.button, { width: "100%" }]}
-                >
-                  <Link href={`/(rices)?rice_land_id=${riceLandId}`} style={{}}>
-                    Rice Variety
-                  </Link>
-                </Button>
-                {rice_variety_name !== null && rice_variety_name !== "" && (
+                  <View style={[GlobalStyles.mainDetailContainer]}>
+                    <Text style={GlobalStyles.label}>LAND SIZE (sqm):</Text>
+                    <Text style={[GlobalStyles.dataText]}>
+                      {rice_land_size_sqm || 0} sqm
+                    </Text>
+                  </View>
+                  <View style={[GlobalStyles.mainDetailContainer]}>
+                    <Text style={GlobalStyles.label}>LAND CODITION:</Text>
+                    <Text style={GlobalStyles.dataText}>
+                      {riceLandConditions.find(
+                        (condition) => condition.value === rice_land_condition
+                      )?.label || "Not available"}
+                    </Text>
+                  </View>
+                  <View style={[GlobalStyles.mainDetailContainer]}>
+                    <Text style={GlobalStyles.label}>RICE GROWTH:</Text>
+                    <Text style={GlobalStyles.dataText}>
+                      {riceLandStages.find(
+                        (stage) => stage.value === rice_land_current_stage
+                      )?.label || "Not available"}
+                    </Text>
+                  </View>
                   <Button
-                    icon={getWeatherIcon(weatherData.weathercode)}
+                    icon="seed"
                     mode="contained"
-                    style={[
-                      GlobalStyles.button,
-                      { width: "100%", backgroundColor: "#FBBC04" },
-                    ]}
+                    style={[GlobalStyles.button, { width: "100%" }]}
                   >
-                    <Link href={`/(advisories)?land_id=${riceLandId}`}>
-                      Advisories
+                    <Link
+                      href={`/(rices)?rice_land_id=${riceLandId}`}
+                      style={{}}
+                    >
+                      Rice Variety
                     </Link>
                   </Button>
-                )}
-              </>
-            ) : (
-              <Text>No data available</Text>
-            )}
-          </>
-        )}
-      </View>
+                  {rice_variety_name !== null && rice_variety_name !== "" && (
+                    <Button
+                      icon={getWeatherIcon(weatherData.weathercode)}
+                      mode="contained"
+                      style={[
+                        GlobalStyles.button,
+                        { width: "100%", backgroundColor: "#FBBC04" },
+                      ]}
+                    >
+                      <Link href={`/(advisories)?land_id=${riceLandId}`}>
+                        Advisories
+                      </Link>
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <Text>No data available</Text>
+              )}
+            </>
+          )}
+        </View>
+      </ScrollView>
     </PaperProvider>
   );
 }

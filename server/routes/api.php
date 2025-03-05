@@ -57,3 +57,6 @@ Route::get('/get_all_advisories/{rice_land_id}', [AdvisoryController::class, 'ge
 // Notes
 Route::get('/get_notes/{rice_land_id}', [NoteController::class, 'index']);
 Route::post('/add_note', [NoteController::class, 'store']);
+Route::delete('/delete_note/{note}', [NoteController::class, 'destroy']);
+Route::get('/get_note/{id}', [NoteController::class, 'get_note']);
+Route::post('/update_note/{id}', [NoteController::class, 'update']);

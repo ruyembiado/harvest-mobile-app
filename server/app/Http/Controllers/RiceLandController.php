@@ -28,7 +28,8 @@ class RiceLandController extends Controller
                 'rice_land_name' => 'required|string',
                 'rice_land_lat' => 'required|string',
                 'rice_land_long' => 'required|string',
-                'rice_land_size' => 'required|string',
+                'rice_land_size' => 'nullable|string',
+                'rice_land_size_sqm' => 'nullable|string',
                 'rice_land_condition' => 'required|string',
                 'rice_land_current_stage' => 'required|string',
             ]);
@@ -47,6 +48,7 @@ class RiceLandController extends Controller
                 'rice_land_lat' => $validatedData['rice_land_lat'],
                 'rice_land_long' => $validatedData['rice_land_long'],
                 'rice_land_size' => $validatedData['rice_land_size'],
+                'rice_land_size_sqm' =>  $validatedData['rice_land_size_sqm'],
                 'rice_land_condition' => $validatedData['rice_land_condition'],
                 'rice_land_current_stage' => $validatedData['rice_land_current_stage'],
             ]);
@@ -69,7 +71,8 @@ class RiceLandController extends Controller
                 'rice_land_name' => 'required|string',
                 'rice_land_lat' => 'required|string',
                 'rice_land_long' => 'required|string',
-                'rice_land_size' => 'required|string',
+                'rice_land_size' => 'nullable|string',
+                'rice_land_size_sqm' => 'nullable|string',
                 'rice_land_condition' => 'required|string',
                 'rice_land_current_stage' => 'required|string',
             ]);
@@ -80,6 +83,7 @@ class RiceLandController extends Controller
                 'rice_land_lat' => $validatedData['rice_land_lat'],
                 'rice_land_long' => $validatedData['rice_land_long'],
                 'rice_land_size' => $validatedData['rice_land_size'],
+                'rice_land_size_sqm' =>  $validatedData['rice_land_size_sqm'],
                 'rice_land_condition' => $validatedData['rice_land_condition'],
                 'rice_land_current_stage' => $validatedData['rice_land_current_stage'],
             ]);

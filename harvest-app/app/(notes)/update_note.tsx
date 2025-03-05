@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, ScrollView, Alert } from "react-native";
 import {
   Provider as PaperProvider,
@@ -11,60 +11,70 @@ import GlobalStyles from "../../assets/styles/styles";
 import customTheme from "../../assets/styles/theme";
 import api from "../../services/api";
 
-const AddNote: React.FC = () => {
+const UpdateNote: React.FC = () => {
   const [noteTitle, setNoteTitle] = useState<string>("");
   const [noteContents, setNoteContents] = useState<string[]>([""]);
   const [loading, setLoading] = useState<boolean>(false);
   const router = useRouter();
   const { id } = useLocalSearchParams();
 
-  // Add a new content field
+  useEffect(() => {
+    fetchNote();
+  }, [id]);
+
+  const fetchNote = async () => {
+    try {
+      const response = await api.get(`/get_note/${id}`);
+      setNoteTitle(response.data.title);
+      setNoteContents(JSON.parse(response.data.content));
+    } catch (error) {
+      console.error("Fetch error:", error);
+      Alert.alert("Error", "Failed to load note details.");
+    }
+  };
+
   const addContentField = () => {
     setNoteContents([...noteContents, ""]);
   };
 
-  // Update a specific content field
   const updateContent = (text: string, index: number) => {
     const updatedContents = [...noteContents];
     updatedContents[index] = text;
     setNoteContents(updatedContents);
   };
 
-  // Delete a content field
   const deleteContentField = (index: number) => {
     if (noteContents.length === 1) {
       Alert.alert("Alert", "At least one note content is required.");
       return;
     }
-    const updatedContents = noteContents.filter((_, i) => i !== index);
-    setNoteContents(updatedContents);
+    setNoteContents(noteContents.filter((_, i) => i !== index));
   };
 
-  const handleAddNote = async () => {
+  const handleUpdateNote = async () => {
     if (!noteTitle) {
-      Alert.alert("Alert", "Rice land name is required.");
+      Alert.alert("Alert", "Note title is required.");
       return;
     }
 
     if (noteContents.every((content) => content.trim() === "")) {
-      Alert.alert("Alert", "Content field are required.");
+      Alert.alert("Alert", "Content field cannot be empty.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await api.post("/add_note", {
-        rice_land_id: id,
+      await api.post(`/update_note/${id}`, {
         title: noteTitle,
-        content: noteContents,
+        content: JSON.stringify(noteContents),
       });
 
+      Alert.alert("Success", "Note updated successfully.");
       router.replace(`/(tabs)/notes?id=${id}`);
-      Alert.alert("Success", "Note added successfully.");
     } catch (error) {
-      console.error("Add error:", error);
-      Alert.alert("Failed", "Could not add note. Please try again.");
+      console.error("Update error:", error);
+      Alert.alert("Failed", "Could not update note. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -74,7 +84,7 @@ const AddNote: React.FC = () => {
     <PaperProvider theme={customTheme}>
       <View style={[GlobalStyles.TitleContainer]}>
         <Text variant="headlineLarge" style={[GlobalStyles.title]}>
-          Add Note
+          Update Note
         </Text>
       </View>
       <ScrollView
@@ -83,20 +93,16 @@ const AddNote: React.FC = () => {
           { paddingLeft: 20, paddingRight: 20 },
         ]}
       >
-        <View style={[GlobalStyles.FormContainer]}>
-          {/* Note Title */}
-          <View>
-            <Text>Note Title:</Text>
-            <TextInput
-              label="Enter note title"
-              value={noteTitle}
-              onChangeText={setNoteTitle}
-              mode="outlined"
-              style={GlobalStyles.input}
-            />
-          </View>
+        <View style={GlobalStyles.FormContainer}>
+          <Text>Note Title:</Text>
+          <TextInput
+            label="Enter note title"
+            value={noteTitle}
+            onChangeText={setNoteTitle}
+            mode="outlined"
+            style={GlobalStyles.input}
+          />
 
-          {/* Dynamic Note Content Fields (Textarea) */}
           {noteContents.map((content, index) => (
             <View key={index} style={{ marginBottom: 10 }}>
               <Text>Note Content {index + 1}:</Text>
@@ -106,8 +112,8 @@ const AddNote: React.FC = () => {
                 onChangeText={(text) => updateContent(text, index)}
                 mode="outlined"
                 multiline
-                numberOfLines={4} // Sets textarea height
-                style={[GlobalStyles.input, { minHeight: 100 }]} // Custom styling for textarea
+                numberOfLines={4}
+                style={[GlobalStyles.input, { minHeight: 100 }]}
               />
               <Button
                 mode="text"
@@ -120,27 +126,22 @@ const AddNote: React.FC = () => {
             </View>
           ))}
 
-          {/* Add Content Button */}
-          <Button
-            mode="outlined"
-            onPress={addContentField}
-            style={GlobalStyles.button}
-          >
+          <Button mode="outlined" onPress={addContentField} style={GlobalStyles.button}>
             + Add More Content
           </Button>
 
-          {/* Submit Button */}
           <Button
-            icon="plus"
+            icon="content-save"
             mode="contained"
             style={GlobalStyles.button}
             loading={loading}
             disabled={loading}
-            onPress={handleAddNote}
+            onPress={handleUpdateNote}
           >
-            Add Note
+            Update Note
           </Button>
         </View>
+
         <Button icon="arrow-left" mode="contained" style={GlobalStyles.button}>
           <Link href={`/(tabs)/notes?id=${id}`}>Back</Link>
         </Button>
@@ -149,4 +150,4 @@ const AddNote: React.FC = () => {
   );
 };
 
-export default AddNote;
+export default UpdateNote;

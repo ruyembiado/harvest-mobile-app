@@ -18,6 +18,7 @@ class RiceLand extends Model
         'rice_land_lat',
         'rice_land_long',
         'rice_land_size',
+        'rice_land_size_sqm',
         'rice_land_condition',
         'rice_land_current_stage'
     ];
