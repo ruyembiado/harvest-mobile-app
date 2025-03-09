@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AICoontroller;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AdvisoryController;
 use App\Http\Controllers\RiceLandController;
 use App\Http\Controllers\RiceVarietyController;
@@ -29,6 +30,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout']);
+Route::get('/get_profile/{id}', [AuthController::class, 'get_profile']);
+Route::post('/update_profile/{id}', [AuthController::class, 'update_profile']);
 
 // Rice Lands
 Route::post('/add_rice_land', [RiceLandController::class, 'add_rice_land']);
@@ -60,3 +63,9 @@ Route::post('/add_note', [NoteController::class, 'store']);
 Route::delete('/delete_note/{note}', [NoteController::class, 'destroy']);
 Route::get('/get_note/{id}', [NoteController::class, 'get_note']);
 Route::post('/update_note/{id}', [NoteController::class, 'update']);
+
+// Tasks
+Route::get('get_task/', [TaskController::class, 'index']); 
+Route::post('add_tasks/', [TaskController::class, 'store']); 
+Route::delete('delete_task/{id}', [TaskController::class, 'destroy']); 
+Route::post('update_tasks/', [TaskController::class, 'update']);

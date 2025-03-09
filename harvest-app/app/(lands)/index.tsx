@@ -16,44 +16,94 @@ import api from "../../services/api";
 import customTheme from "../../assets/styles/theme";
 import { Link, useRouter } from "expo-router";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
+import * as Notifications from "expo-notifications";
+import { registerBackgroundTask } from "../../services/notification";
+import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
+import { useRiceLand } from "../../context/RiceLandContext";
+
+// Set up the notification handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 const Index: React.FC = () => {
-  const [riceLands, setRiceLands] = React.useState<Array<any>>([]);
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const [visible, setVisible] = React.useState(false);
-  const [selectedLandId, setSelectedLandId] = React.useState<string | null>(
-    null
-  );
+  const [riceLands, setRiceLands] = useState<Array<any>>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [visible, setVisible] = useState(false);
+  const [selectedLandId, setSelectedLandId] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
   const router = useRouter();
+  const [riceLandId, setRiceLandId] = useState<number | null>(null);
 
+  const handleSelectRiceLand = async (id: number) => {
+    try {
+      setRiceLandId(id); // Update the state
+      await AsyncStorage.setItem("riceLandId", id.toString()); // Convert id to string and save to AsyncStorage
+      console.log("Rice Land ID saved to AsyncStorage:", id);
+    } catch (error) {
+      console.error("Failed to save riceLandId to AsyncStorage:", error);
+    }
+  };
+
+  // Check network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isConnected);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch rice lands data
   const fetchRiceLands = async () => {
     try {
-
-      const storedLanguage = await AsyncStorage.getItem("selectedLanguage");
-      console.log("Selected Language:", storedLanguage);
-
       const user_id = await getUserIdOrLogout(router);
       if (!user_id) {
         return;
       }
 
-      const response = await api.post("/rice_lands", {
-        user_id,
-      });
-
-      if (response.status === 200) {
-        console.log("Rice Lands:", response.data.lands);
-        setRiceLands(response.data.lands);
+      if (isOffline) {
+        // Offline mode: Retrieve cached data
+        const cachedRiceLands = await AsyncStorage.getItem("cachedRiceLands");
+        if (cachedRiceLands) {
+          setRiceLands(JSON.parse(cachedRiceLands));
+          Alert.alert("Offline Mode", "Displaying cached rice lands data.");
+        } else {
+          Alert.alert(
+            "Offline Mode",
+            "No cached data found. Please go online to fetch data."
+          );
+        }
       } else {
-        console.error("Error fetching rice lands:", response.data.error);
+        console.log("Online Mode");
+        // Online mode: Fetch data from API
+        const response = await api.post("/rice_lands", {
+          user_id,
+        });
+
+        if (response.status === 200) {
+          setRiceLands(response.data.lands);
+          // Cache the fetched data
+          await AsyncStorage.setItem(
+            "cachedRiceLands",
+            JSON.stringify(response.data.lands)
+          );
+        } else {
+          console.error("Error fetching rice lands:", response.data.error);
+        }
       }
     } catch (error) {
-      console.error("Network error:", error);
+      // console.error("Network error:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Delete rice land
   const deleteRiceLand = async (id: string) => {
     try {
       const user_id = await getUserIdOrLogout(router);
@@ -82,8 +132,7 @@ const Index: React.FC = () => {
               });
               if (response.status === 200) {
                 alert("Rice land deleted successfully!");
-                console.log("Rice land deleted successfully!");
-                fetchRiceLands();
+                fetchRiceLands(); // Refresh the list
               } else {
                 console.error("Error deleting rice land:", response.data.error);
               }
@@ -93,15 +142,21 @@ const Index: React.FC = () => {
         { cancelable: false }
       );
     } catch (error) {
-      console.error("Network error:", error);
+      // console.error("Network error:", error);
     } finally {
       setLoading(false);
     }
   };
 
+  // Register background task
+  useEffect(() => {
+    registerBackgroundTask();
+  }, []);
+
+  // Fetch rice lands on component mount
   useEffect(() => {
     fetchRiceLands();
-  }, []);
+  }, [isOffline]); // Re-fetch when offline status changes
 
   if (loading) {
     return (
@@ -126,14 +181,21 @@ const Index: React.FC = () => {
         <Card.Content>
           <View style={[GlobalStyles.RiceLandContainer]}>
             <View>
-              <Button
-                mode="contained"
-                style={[GlobalStyles.addButton, { marginBottom: 20 }]}
-              >
-                <Link href="/(lands)/add_land">Add</Link>
-              </Button>
+              {/* {!isOffline && (
+                <> */}
+                  <Button
+                    mode="contained"
+                    style={[GlobalStyles.addButton, { marginBottom: 20 }]}
+                  >
+                    <Link href="/(lands)/add_land">Add</Link>
+                  </Button>
+                {/* </>
+              )} */}
               <ScrollView
-                contentContainerStyle={[GlobalStyles.RiceLandScrollContainer, { paddingBottom: 10 }]}
+                contentContainerStyle={[
+                  GlobalStyles.RiceLandScrollContainer,
+                  { paddingBottom: 10 },
+                ]}
                 showsVerticalScrollIndicator={false}
               >
                 {riceLands.length > 0 ? (
@@ -161,21 +223,15 @@ const Index: React.FC = () => {
                             }
                           >
                             <Menu.Item
-                              onPress={() => {
+                              onPress={async () => {
                                 setVisible(false);
+                                handleSelectRiceLand(land.id);
                                 router.push(`/(tabs)/?id=${land.id}`);
                               }}
                               title="View"
                             />
-                            {/* <Menu.Item
-                              onPress={() => {
-                                setVisible(false);
-                                router.push(
-                                  `/(lands)/view_land?id=${land.id}`
-                                );
-                              }}
-                              title="Details"
-                            /> */}
+                            {/* {!isOffline && (
+                              <> */}
                             <Menu.Item
                               onPress={() => {
                                 setVisible(false);
@@ -185,7 +241,11 @@ const Index: React.FC = () => {
                               }}
                               title="Update"
                             />
+                            {/* </>
+                            )} */}
                             <Divider />
+                            {/* {!isOffline && (
+                              <> */}
                             <Menu.Item
                               onPress={() => {
                                 setVisible(false);
@@ -193,6 +253,8 @@ const Index: React.FC = () => {
                               }}
                               title="Delete"
                             />
+                            {/* </>
+                            )} */}
                           </Menu>
                         </View>
                         <Text style={GlobalStyles.RiceLandTitle}>

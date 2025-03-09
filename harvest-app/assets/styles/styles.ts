@@ -181,7 +181,7 @@ const globalStyles = StyleSheet.create({
     marginBottom: 10,
     width: 100,
     alignSelf: "flex-end",
-    backgroundColor: "#00009F",
+    backgroundColor: "#4CAF50",
   },
   deleteButton: {
     width: 100,

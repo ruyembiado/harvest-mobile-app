@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Define the context type
 interface RiceLandContextType {
@@ -7,9 +8,7 @@ interface RiceLandContextType {
 }
 
 // Create the context
-const RiceLandContext = createContext<RiceLandContextType | undefined>(
-  undefined
-);
+const RiceLandContext = createContext<RiceLandContextType | undefined>(undefined);
 
 // Define props for the provider
 interface RiceLandProviderProps {
@@ -17,10 +16,41 @@ interface RiceLandProviderProps {
 }
 
 // Create the provider component
-export const RiceLandProvider: React.FC<RiceLandProviderProps> = ({
-  children,
-}) => {
+export const RiceLandProvider: React.FC<RiceLandProviderProps> = ({ children }) => {
   const [riceLandId, setRiceLandId] = useState<number | null>(null);
+
+  // Load riceLandId from AsyncStorage when the app starts
+  useEffect(() => {
+    const loadRiceLandId = async () => {
+      try {
+        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
+        if (savedRiceLandId) {
+          setRiceLandId(JSON.parse(savedRiceLandId));
+        }
+      } catch (error) {
+        console.error("Failed to load riceLandId from AsyncStorage:", error);
+      }
+    };
+
+    loadRiceLandId();
+  }, []);
+
+  // Save riceLandId to AsyncStorage whenever it changes
+  useEffect(() => {
+    const saveRiceLandId = async () => {
+      try {
+        if (riceLandId !== null) {
+          await AsyncStorage.setItem("riceLandId", JSON.stringify(riceLandId));
+        } else {
+          await AsyncStorage.removeItem("riceLandId");
+        }
+      } catch (error) {
+        console.error("Failed to save riceLandId to AsyncStorage:", error);
+      }
+    };
+
+    saveRiceLandId();
+  }, [riceLandId]);
 
   return (
     <RiceLandContext.Provider value={{ riceLandId, setRiceLandId }}>

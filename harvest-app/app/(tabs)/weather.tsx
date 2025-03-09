@@ -6,6 +6,8 @@ import { useRiceLand } from "../../context/RiceLandContext";
 import api from "../../services/api";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
+import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
 
 const WeatherScreen: React.FC = () => {
   const { riceLandId, setRiceLandId } = useRiceLand();
@@ -16,31 +18,94 @@ const WeatherScreen: React.FC = () => {
   const [weatherData, setWeatherData] = useState<Array<any>>([]);
   const [current_weather_temperature, setCurrentWeatherTemp] =
     useState<any>(null);
+  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
+
+  useEffect(() => {
+    const loadRiceLandId = async () => {
+      try {
+        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
+        if (savedRiceLandId) {
+          const id = parseInt(savedRiceLandId, 10); // Convert string to number
+          if (!isNaN(id)) {
+            setRiceLandId(id); // Update the state
+            console.log("Rice Land ID loaded from AsyncStorage:", id);
+          }
+        }
+      } catch (error) {
+        // console.error("Failed to load riceLandId from AsyncStorage:", error);
+      }
+    };
+
+    loadRiceLandId();
+  }, []);
+
+  // Check network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isConnected);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fetchLandDetails = async () => {
       if (!riceLandId) return;
       setLandLoading(true);
+    
       try {
-        const response = await api.get(`/get_rice_land/${riceLandId}`);
-        const data = response.data;
-        if (data && data.rice_land_lat && data.rice_land_long) {
-          setRiceLandId(data.id);
-          setRiceLandLat(data.rice_land_lat);
-          setRiceLandLong(data.rice_land_long);
+        if (isOffline) {
+          // Offline mode: Retrieve cached data
+          const cachedLandData = await AsyncStorage.getItem(
+            `cachedLandData_${riceLandId}`
+          );
+    
+          if (cachedLandData) {
+            const data = JSON.parse(cachedLandData);
+            if (data && data.rice_land_lat && data.rice_land_long) {
+              setRiceLandLat(data.rice_land_lat);
+              setRiceLandLong(data.rice_land_long);
+              console.log("Using cached land data:", data);
+            } else {
+              throw new Error("Invalid cached land data");
+            }
+          } else {
+            throw new Error("No cached land data found");
+          }
         } else {
-          throw new Error("Invalid land data received");
+          // Online mode: Fetch fresh data
+          const response = await api.get(`/get_rice_land/${riceLandId}`);
+          const data = response.data;
+    
+          if (data && data.rice_land_lat && data.rice_land_long) {
+            setRiceLandLat(data.rice_land_lat);
+            setRiceLandLong(data.rice_land_long);
+    
+            // Cache land data
+            await AsyncStorage.setItem(
+              `cachedLandData_${riceLandId}`,
+              JSON.stringify(data)
+            );
+    
+            console.log("Cached land data:", data);
+          } else {
+            throw new Error("Invalid land data received");
+          }
         }
       } catch (error) {
-        console.error("Error fetching land details:", error);
-        Alert.alert("Error", "Unable to fetch land details.");
+        // console.error("Error fetching land details:", error);
+        // Alert.alert(
+        //   "Error",
+        //   isOffline
+        //     ? "No cached data found. Please go online to fetch land details."
+        //     : "Unable to fetch land details."
+        // );
       } finally {
         setLandLoading(false);
       }
     };
-
     fetchLandDetails();
-  }, [riceLandId]);
+  }, [riceLandId, isOffline]);
 
   useEffect(() => {
     if (rice_land_lat && rice_land_long) {
@@ -50,41 +115,78 @@ const WeatherScreen: React.FC = () => {
 
   const fetchWeatherData = async () => {
     setWeatherLoading(true);
+  
     try {
-      const response = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${rice_land_lat}&longitude=${rice_land_long}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,sunshine_duration,weathercode&timezone=auto&current_weather=true`
-      );
-      const data = await response.json();
-
-      if (!data || !data.daily || !data.daily.time) {
-        throw new Error("Invalid API response structure");
+      if (isOffline) {
+        // Offline mode: Retrieve cached data
+        const cachedWeatherData = await AsyncStorage.getItem(
+          `cachedWeatherData_${riceLandId}`
+        );
+        const cachedCurrentTemp = await AsyncStorage.getItem(
+          `cachedCurrentTemp_${riceLandId}`
+        );
+  
+        if (cachedWeatherData && cachedCurrentTemp) {
+          setWeatherData(JSON.parse(cachedWeatherData));
+          setCurrentWeatherTemp(JSON.parse(cachedCurrentTemp));
+          console.log("Using cached weather data:", cachedWeatherData);
+        } else {
+          throw new Error("No cached weather data found");
+        }
+      } else {
+        // Online mode: Fetch fresh data
+        const response = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${rice_land_lat}&longitude=${rice_land_long}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,sunshine_duration,weathercode&timezone=auto&current_weather=true`
+        );
+        const data = await response.json();
+  
+        if (!data || !data.daily || !data.daily.time) {
+          throw new Error("Invalid API response structure");
+        }
+  
+        setCurrentWeatherTemp(data.current_weather.temperature);
+  
+        const transformedData = data.daily.time.map((date, index) => ({
+          date,
+          high: data.daily.temperature_2m_max?.[index] ?? "N/A",
+          low: data.daily.temperature_2m_min?.[index] ?? "N/A",
+          rain: `${data.daily.precipitation_sum?.[index] ?? 0} mm`,
+          wind: `${data.daily.windspeed_10m_max?.[index] ?? "N/A"} km/h`,
+          sun: `${Math.round(
+            (data.daily.sunshine_duration?.[index] ?? 0) / 3600
+          )}h`,
+          weatherCode: data.daily.weathercode?.[index] ?? 0,
+          day: new Date(date).toLocaleDateString("en-US", { weekday: "short" }),
+        }));
+  
+        // Map weather codes to icons
+        const updatedWeatherData = transformedData.map((item) => ({
+          ...item,
+          icon: getWeatherIcon(item.weatherCode),
+        }));
+  
+        setWeatherData(updatedWeatherData);
+  
+        // Cache weather data
+        await AsyncStorage.setItem(
+          `cachedWeatherData_${riceLandId}`,
+          JSON.stringify(updatedWeatherData)
+        );
+        await AsyncStorage.setItem(
+          `cachedCurrentTemp_${riceLandId}`,
+          JSON.stringify(data.current_weather.temperature)
+        );
+  
+        console.log("Cached weather data:", updatedWeatherData);
       }
-
-      setCurrentWeatherTemp(data.current_weather.temperature);
-
-      const transformedData = data.daily.time.map((date, index) => ({
-        date,
-        high: data.daily.temperature_2m_max?.[index] ?? "N/A",
-        low: data.daily.temperature_2m_min?.[index] ?? "N/A",
-        rain: `${data.daily.precipitation_sum?.[index] ?? 0} mm`,
-        wind: `${data.daily.windspeed_10m_max?.[index] ?? "N/A"} km/h`,
-        sun: `${Math.round(
-          (data.daily.sunshine_duration?.[index] ?? 0) / 3600
-        )}h`,
-        weatherCode: data.daily.weathercode?.[index] ?? 0,
-        day: new Date(date).toLocaleDateString("en-US", { weekday: "short" }),
-      }));
-
-      // Map weather codes to icons
-      const updatedWeatherData = transformedData.map((item) => ({
-        ...item,
-        icon: getWeatherIcon(item.weatherCode),
-      }));
-
-      setWeatherData(updatedWeatherData);
     } catch (error) {
-      console.error("Error fetching weather data:", error.message);
-      Alert.alert("Error", "Unable to fetch weather data. Please try again.");
+      // console.error("Error fetching weather data:", error.message);
+      // Alert.alert(
+      //   "Error",
+      //   isOffline
+      //     ? "No cached data found. Please go online to fetch weather data."
+      //     : "Unable to fetch weather data. Please try again."
+      // );
     } finally {
       setWeatherLoading(false);
     }
@@ -187,7 +289,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     borderRadius: 10,
     padding: 15,
-    marginBottom: 15,
+    marginBottom: 10,
     elevation: 3,
     shadowColor: "#F9F9F9",
     shadowOffset: { width: 0, height: 2 },

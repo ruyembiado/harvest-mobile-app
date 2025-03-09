@@ -5,40 +5,36 @@ import api from "@/services/api";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import {
   Text,
   Button,
-  Menu,
-  Divider,
-  IconButton,
   ActivityIndicator,
   PaperProvider,
-  Card,
 } from "react-native-paper";
 import * as Location from "expo-location";
 import { useRiceLand } from "../../context/RiceLandContext";
+import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
 
 export default function Index() {
   const { riceLandId, setRiceLandId } = useRiceLand();
-  const [placeName, setPlaceName] = React.useState<string>("Fetching place...");
-  const [rice_land_name, setRiceLandName] = React.useState<string>("");
-  const [rice_variety_name, setRiceVarietyName] = React.useState<string>("");
-  const [rice_land_lat, setRiceLandLat] = React.useState<string>("");
-  const [rice_land_long, setRiceLandLong] = React.useState<string>("");
-  const [rice_land_size, setRiceLandSize] = React.useState<string>("");
-  const [rice_land_size_sqm, setRiceLandSizeSQM] = React.useState<string>("");
-  const [rice_land_condition, setRiceLandCondition] =
-    React.useState<string>("");
-  const [rice_land_current_stage, setRiceLandStage] =
-    React.useState<string>("");
+  const [placeName, setPlaceName] = useState<string>("Fetching place...");
+  const [rice_land_name, setRiceLandName] = useState<string>("");
+  const [rice_variety_name, setRiceVarietyName] = useState<string>("");
+  const [rice_land_lat, setRiceLandLat] = useState<string>("");
+  const [rice_land_long, setRiceLandLong] = useState<string>("");
+  const [rice_land_size, setRiceLandSize] = useState<string>("");
+  const [rice_land_size_sqm, setRiceLandSizeSQM] = useState<string>("");
+  const [rice_land_condition, setRiceLandCondition] = useState<string>("");
+  const [rice_land_current_stage, setRiceLandStage] = useState<string>("");
   const [weatherLoading, setWeatherLoading] = useState<boolean>(false);
   const [weatherData, setWeatherData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isOffline, setIsOffline] = useState<boolean>(false); 
   const router = useRouter();
   const { id } = useLocalSearchParams();
-
-  console.log(riceLandId);
+  const navigation = useNavigation();
 
   const riceLandConditions = [
     { label: "-- Select Condition --", value: "" },
@@ -60,42 +56,143 @@ export default function Index() {
   ];
 
   const today = new Date().toISOString().split("T")[0];
-  const update_rice_land_stage_today = async () => {
-    try {
-      const response = await api.post("/update_rice_land_stage_today/", {
-        today,
-        id,
-      });
 
-      if (response.data.status === "success") {
-        console.log("Rice land stage updated successfully:", response.data);
+  useEffect(() => {
+    if (rice_land_name) {
+      navigation.setOptions({ title: rice_land_name });
+    }
+  }, [rice_land_name, navigation, isOffline]);
+
+  useEffect(() => {
+    const loadRiceLandId = async () => {
+      try {
+        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
+        if (savedRiceLandId) {
+          const id = parseInt(savedRiceLandId, 10); // Convert string to number
+          if (!isNaN(id)) {
+            setRiceLandId(id); // Update the state
+            console.log("Rice Land ID loaded from AsyncStorage:", id);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load riceLandId from AsyncStorage:", error);
+      }
+    };
+
+    loadRiceLandId();
+  }, []);
+
+  // Check network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isConnected);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Fetch rice land details
+  const fetchLandDetails = async () => {
+    if (!id) return;
+    setLoading(true);
+    try {
+      if (isOffline) {
+        // Offline mode: Retrieve cached data
+        const cachedRiceLand = await AsyncStorage.getItem(
+          `cachedRiceLand_${id}`
+        );
+        if (cachedRiceLand) {
+          const data = JSON.parse(cachedRiceLand);
+          setRiceLandData(data);
+          Alert.alert("Offline Mode", "Displaying cached rice land data.");
+        } else {
+          Alert.alert(
+            "Offline Mode",
+            "No cached data found. Please go online to fetch data."
+          );
+        }
       } else {
-        console.log("Failed to update rice land stage:", response.data.message);
+        // Online mode: Fetch data from API
+        const response = await api.get(`/get_rice_land/${id}`);
+        const data = response.data;
+        setRiceLandData(data);
+
+        // Cache the fetched data
+        await AsyncStorage.setItem(
+          `cachedRiceLand_${id}`,
+          JSON.stringify(data)
+        );
+
+        const cachedRiceLand = await AsyncStorage.getItem(
+          `cachedRiceLand_${id}`
+        );
+        console.log("cached cachedRiceLand:", cachedRiceLand);
       }
     } catch (error) {
-      console.error("Error updating rice growth stage:", error);
-      // Alert.alert(
-      //   "Error",
-      //   "An error occurred while updating the rice land stage."
-      // );
+      // console.error("Error fetching land details:", error);
+      // Alert.alert("Error", "Unable to fetch land details.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const navigation = useNavigation();
-  useEffect(() => {
-    if (rice_land_name) {
-      navigation.setOptions({
-        headerTitle: `${rice_land_name}`,
-      });
-    }
-  }, [navigation, rice_land_name]);
+  // Set rice land data
+  const setRiceLandData = (data: any) => {
+    setRiceLandId(data.id);
+    setRiceLandName(data.rice_land_name);
+    setRiceLandLat(data.rice_land_lat);
+    setRiceLandLong(data.rice_land_long);
+    setRiceLandSize(data.rice_land_size);
+    setRiceLandSizeSQM(data.rice_land_size_sqm);
+    setRiceLandCondition(data.rice_land_condition);
+    setRiceLandStage(data.rice_land_current_stage);
+    setRiceVarietyName(data.rice_variety_name);
+  };
 
-  useEffect(() => {
-    if (rice_land_lat && rice_land_long) {
-      reverseGeocodeExpo(parseFloat(rice_land_lat), parseFloat(rice_land_long));
-    }
-  }, [rice_land_lat, rice_land_long]);
+  // Fetch weather data
+  const fetchWeatherData = async () => {
+    setWeatherLoading(true);
+    try {
+      if (isOffline) {
+        // Offline mode: Retrieve cached data
+        const cachedWeatherData = await AsyncStorage.getItem(
+          `cachedWeatherData_${id}`
+        );
+        if (cachedWeatherData) {
+          setWeatherData(JSON.parse(cachedWeatherData));
+          Alert.alert("Offline Mode", "Displaying cached weather data.");
+        } else {
+          Alert.alert(
+            "Offline Mode",
+            "No cached data found. Please go online to fetch data."
+          );
+        }
+      } else {
+        const response = await api.get(
+          `https://api.open-meteo.com/v1/forecast?latitude=${rice_land_lat}&longitude=${rice_land_long}&current_weather=true`
+        );
+        setWeatherData(response.data.current_weather);
 
+        // Cache the fetched data
+        await AsyncStorage.setItem(
+          `cachedWeatherData_${id}`,
+          JSON.stringify(response.data.current_weather)
+        );
+
+        const cachedWeatherData = await AsyncStorage.getItem(
+          `cachedWeatherData_${id}`
+        );
+        console.log("cached cachedWeatherData:", cachedWeatherData);
+      }
+    } catch (error) {
+      // console.error("Error fetching weather data:", error);
+      // Alert.alert("Error", "Unable to fetch weather data.");
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
+  // Reverse geocode to get place name
   const reverseGeocodeExpo = async (lat: number, lng: number) => {
     try {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -120,55 +217,18 @@ export default function Index() {
         setPlaceName("Place not found");
       }
     } catch (error) {
-      console.error("Error fetching place:", error);
-      Alert.alert("Error", "Failed to fetch place name.");
-    }
-  };
-
-  const fetchLandDetails = async () => {
-    if (!id) return;
-    setLoading(true);
-    try {
-      const response = await api.get(`/get_rice_land/${id}`);
-      const data = response.data;
-      console.log(data);
-      setRiceLandId(data.id);
-      setRiceLandName(data.rice_land_name);
-      setRiceLandLat(data.rice_land_lat);
-      setRiceLandLong(data.rice_land_long);
-      setRiceLandSize(data.rice_land_size);
-      setRiceLandSizeSQM(data.rice_land_size_sqm);
-      setRiceLandCondition(data.rice_land_condition);
-      setRiceLandStage(data.rice_land_current_stage);
-      setRiceVarietyName(data.rice_variety_name);
-      update_rice_land_stage_today();
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching land details:", error);
-      Alert.alert("Error", "Unable to fetch land details.");
-    }
-  };
-
-  const fetchWeatherData = async () => {
-    setWeatherLoading(true);
-    try {
-      const response = await api.get(
-        `https://api.open-meteo.com/v1/forecast?latitude=${rice_land_lat}&longitude=${rice_land_long}&current_weather=true`
-      );
-      setWeatherData(response.data.current_weather);
-      setWeatherLoading(false);
-    } catch (error) {
-      console.error("Error fetching weather data:", error);
-      Alert.alert("Error", "Unable to fetch weather data.");
+      // console.error("Error fetching place:", error);
+      // Alert.alert("Error", "Failed to fetch place name.");
     }
   };
 
   useEffect(() => {
     fetchLandDetails();
-  }, [id]);
+  }, [id, isOffline]);
 
   useEffect(() => {
     if (rice_land_lat && rice_land_long) {
+      reverseGeocodeExpo(parseFloat(rice_land_lat), parseFloat(rice_land_long));
       fetchWeatherData();
     }
   }, [rice_land_lat, rice_land_long]);
@@ -214,7 +274,10 @@ export default function Index() {
   return (
     <PaperProvider theme={customTheme}>
       <ScrollView
-        contentContainerStyle={[GlobalStyles.RiceLandScrollContainer, { flexGrow: 1 }]}
+        contentContainerStyle={[
+          GlobalStyles.RiceLandScrollContainer,
+          { flexGrow: 1 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View
@@ -300,7 +363,7 @@ export default function Index() {
                     </Text>
                   </View>
                   <View style={[GlobalStyles.mainDetailContainer]}>
-                    <Text style={GlobalStyles.label}>LAND CODITION:</Text>
+                    <Text style={GlobalStyles.label}>LAND CONDITION:</Text>
                     <Text style={GlobalStyles.dataText}>
                       {riceLandConditions.find(
                         (condition) => condition.value === rice_land_condition
@@ -318,7 +381,10 @@ export default function Index() {
                   <Button
                     icon="seed"
                     mode="contained"
-                    style={[GlobalStyles.button, { width: "100%" }]}
+                    style={[
+                      GlobalStyles.button,
+                      { width: "100%", marginBottom: 5, marginTop: 0 },
+                    ]}
                   >
                     <Link
                       href={`/(rices)?rice_land_id=${riceLandId}`}

@@ -64,4 +64,47 @@ class AuthController extends Controller
             return response()->json(['error' => 'Failed to logout, please try again.'], 500);
         }
     }
+
+    public function get_profile($id)
+    {
+        $user = User::find($id);
+        return response()->json([
+            'user' => $user,
+        ], 200);
+    }
+
+    public function update_profile(Request $request, $id)
+    {
+        $validatedData = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email|max:255|unique:users,email,' . $id,
+            'phone' => 'sometimes|string|max:20',
+        ]);
+
+        // Find the user by ID
+        $user = User::find($id);
+        if (!$user) {
+            return response()->json(['message' => 'User not found'], 404);
+        }
+
+        if (isset($validatedData['name'])) {
+            $user->name = $validatedData['name'];
+        }
+        if (isset($validatedData['email'])) {
+            $user->email = $validatedData['email'];
+        }
+        if (isset($validatedData['phone'])) {
+            $user->phone = $validatedData['phone'];
+        }
+        if (isset($validatedData['password'])) {
+            $user->password = bcrypt($validatedData['password']); 
+        }
+
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => $user,
+        ], 200);
+    }
 }

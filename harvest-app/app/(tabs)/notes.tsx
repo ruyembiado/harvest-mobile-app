@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { View, ScrollView, Alert, Text, TouchableOpacity } from "react-native";
 import { Button, PaperProvider, ActivityIndicator } from "react-native-paper";
 import { FontAwesome } from "@expo/vector-icons";
@@ -7,6 +7,8 @@ import customTheme from "@/assets/styles/theme";
 import { useRiceLand } from "../../context/RiceLandContext";
 import api from "@/services/api";
 import { Link, useLocalSearchParams, useFocusEffect } from "expo-router";
+import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
 
 const NotesScreen: React.FC = () => {
   const { riceLandId, setRiceLandId } = useRiceLand();
@@ -14,21 +16,69 @@ const NotesScreen: React.FC = () => {
   const [notes, setNotes] = useState<Array<any>>([]);
   const { id } = useLocalSearchParams();
   const ID = riceLandId || id;
+  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
+
+  useEffect(() => {
+    const loadRiceLandId = async () => {
+      try {
+        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
+        if (savedRiceLandId) {
+          const id = parseInt(savedRiceLandId, 10); // Convert string to number
+          if (!isNaN(id)) {
+            setRiceLandId(id); // Update the state
+            console.log("Rice Land ID loaded from AsyncStorage:", id);
+          }
+        }
+      } catch (error) {
+        // console.error("Failed to load riceLandId from AsyncStorage:", error);
+      }
+    };
+
+    loadRiceLandId();
+  }, []);
+
+  // Check network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isConnected);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const fetchNotes = async () => {
     setLoading(true);
     if (!ID) {
-      console.warn("No riceLandId or id found, but proceeding with fetch.");
+      // console.warn("No riceLandId or id found, but proceeding with fetch.");
     }
-
     try {
-      console.log("Fetching notes for rice land id:", ID);
-      const response = await api.get(`/get_notes/${ID}/`);
-      console.log("API Response:", response.data);
-      setNotes(response.data);
+      if (isOffline) {
+        // console.log("Device is offline, fetching cached notes data.");
+        const cachedNotesData = await AsyncStorage.getItem(
+          `cachedNotesData_${ID}`
+        );
+        if (cachedNotesData) {
+          setNotes(JSON.parse(cachedNotesData));
+        }
+      } else {
+        // console.log("Fetching notes for rice land id:", ID);
+        const response = await api.get(`/get_notes/${ID}/`);
+        console.log("API Response:", response.data);
+        setNotes(response.data);
+
+        // Store notes in AsyncStorage
+        await AsyncStorage.setItem(
+          `cachedNotesData_${ID}`,
+          JSON.stringify(response.data)
+        );
+
+        // Console log the stored data
+        const cachedData = await AsyncStorage.getItem(`cachedNotesData_${ID}`);
+        console.log("Cached Notes Data:", cachedData);
+      }
     } catch (error) {
-      console.error("Error fetching notes:", error);
-      Alert.alert("Error", "Failed to load notes.");
+      // console.error("Error fetching notes:", error);
+      // Alert.alert("Error", "Failed to load notes.");
     } finally {
       setLoading(false);
     }
@@ -49,8 +99,8 @@ const NotesScreen: React.FC = () => {
             Alert.alert("Success", "Note deleted successfully.");
             fetchNotes(); // Refresh notes after deletion
           } catch (error) {
-            console.error("Error deleting note:", error);
-            Alert.alert("Error", "Failed to delete note.");
+            // console.error("Error deleting note:", error);
+            // Alert.alert("Error", "Failed to delete note.");
           } finally {
             setLoading(false);
           }
@@ -62,7 +112,7 @@ const NotesScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       fetchNotes();
-    }, [id, riceLandId])
+    }, [id, riceLandId, isOffline])
   );
 
   if (loading) {
@@ -92,7 +142,7 @@ const NotesScreen: React.FC = () => {
             marginBottom: 15,
             width: 150,
             alignSelf: "flex-end",
-            backgroundColor: "#00009F",
+            backgroundColor: "#4CAF50",
           }}
         >
           <Link href={`/(notes)/add_note?id=${ID}`} style={{ color: "#fff" }}>
@@ -120,7 +170,7 @@ const NotesScreen: React.FC = () => {
                   key={note.id}
                   style={[
                     GlobalStyles.Weathercard,
-                    { width: 330, marginBottom: 10 },
+                    { width: 330, marginBottom: 0 },
                   ]}
                 >
                   <Text style={GlobalStyles.label}>{note.title}</Text>
@@ -151,7 +201,7 @@ const NotesScreen: React.FC = () => {
                     </TouchableOpacity>
 
                     <Link href={`/(notes)/update_note?id=${note.id}`}>
-                      <FontAwesome name="pencil" size={20} color="#00009F" />
+                      <FontAwesome name="pencil" size={20} color="#4CAF50" />
                     </Link>
                   </View>
                 </View>

@@ -223,7 +223,7 @@ const UpdateLand: React.FC = () => {
              <Text>Size of the Land in square meter(sqm) (optional):</Text>
             <TextInput
               label="Enter size of the land (sqm)"
-              value={rice_land_size_sqm}
+              value={rice_land_size_sqm}  
               onChangeText={setRiceLandSizeSQM}
               mode="outlined"
               style={GlobalStyles.input}

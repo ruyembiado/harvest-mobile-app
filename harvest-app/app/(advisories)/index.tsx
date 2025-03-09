@@ -1,4 +1,4 @@
-import { View, Alert } from "react-native";
+import { View, Alert, TouchableOpacity, FlatList } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
 import api from "@/services/api";
@@ -10,7 +10,12 @@ import {
   ActivityIndicator,
   PaperProvider,
   Button,
+  TextInput,
+  Menu,
+  IconButton,
 } from "react-native-paper";
+import { Picker } from "@react-native-picker/picker";
+import DropDownPicker from "react-native-dropdown-picker";
 
 export default function Index() {
   const [advisories, setAdvisories] = useState<any[]>([]);
@@ -26,6 +31,7 @@ export default function Index() {
   const [currentDayIndex, setCurrentDayIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const { land_id } = useLocalSearchParams();
+  const [question, setQuestion] = useState("");
 
   const stageIcons: { [key: string]: string } = {
     "Germination": "sprout",
@@ -97,7 +103,7 @@ export default function Index() {
         weatherData: weatherData?.daily?.[currentDayIndex] || null,
         date,
       });
-      
+
       console.log("generateAdvisory response:", response.data);
 
       if (response.status === 200) {
@@ -362,6 +368,36 @@ export default function Index() {
                       />
                     </View>
                   </View>
+                </View>
+                <View
+                  style={{
+                    width: "100%",
+                    marginBottom: 10,
+                    borderColor: "#EBEBEB",
+                    borderWidth: 1,
+                    borderRadius: 20,
+                    justifyContent: "center",
+                    paddingHorizontal: 15,
+                    backgroundColor: "#fff",
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  {/* Search Icon */}
+                  <Icon
+                    name="search-web"
+                    size={20}
+                    color="#000"
+                    style={{ marginRight: 0, marginLeft: 0 }}
+                  />
+
+                  {/* TextInput for Question */}
+                  <TextInput
+                    style={{ flex: 1, backgroundColor: "transparent", width: "100%" }}
+                    value={question}
+                    placeholder="Type your question here..."
+                    onChangeText={(text) => setQuestion(text)}
+                  />
                 </View>
                 <View>
                   <Text

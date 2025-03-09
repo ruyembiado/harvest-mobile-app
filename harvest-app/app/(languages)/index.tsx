@@ -30,6 +30,7 @@ const Index: React.FC = () => {
   // Save selected language
   const handleLanguageChange = async (value: string) => {
     setLanguage(value);
+    console.log("Selected Language:", value);
     await AsyncStorage.setItem("selectedLanguage", value);
   };
 

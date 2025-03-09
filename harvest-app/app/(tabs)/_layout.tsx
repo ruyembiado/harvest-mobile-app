@@ -64,6 +64,22 @@ export default function RootLayout() {
               headerTitleAlign: "center",
             }}
           />
+
+          <Tabs.Screen
+            name="setting"
+            options={{
+              tabBarLabel: "Settings",
+              tabBarIcon: ({ color, size }) => (
+                <Ionicons
+                  name="settings-outline"
+                  size={size}
+                  color={color}
+                />
+              ),
+              headerTitle: "Settings",
+              headerTitleAlign: "center",
+            }}
+          />
         </Tabs>
       </PaperProvider>
     </RiceLandProvider>

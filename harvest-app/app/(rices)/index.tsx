@@ -13,30 +13,96 @@ import customTheme from "../../assets/styles/theme";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
 import CropDetails from "../../crop_types/CropDetails";
+import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
+import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
 
 const Index: React.FC = () => {
   const [riceVariety, setRiceVariety] = React.useState<any>(null);
   const [loading, setLoading] = React.useState<boolean>(true);
   const router = useRouter();
   const { rice_land_id } = useLocalSearchParams();
+  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
+  const [riceLandId, setRiceLandId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadRiceLandId = async () => {
+      try {
+        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
+        if (savedRiceLandId) {
+          const id = parseInt(savedRiceLandId, 10); // Convert string to number
+          if (!isNaN(id)) {
+            setRiceLandId(id); // Update the state
+            console.log("Rice Land ID loaded from AsyncStorage:", id);
+          }
+        }
+      } catch (error) {
+        // console.error("Failed to load riceLandId from AsyncStorage:", error);
+      }
+    };
+
+    loadRiceLandId();
+  }, []);
+  // Check network connectivity
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOffline(!state.isConnected);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const fetchRiceVariety = async () => {
     try {
-      const user_id = await getUserIdOrLogout(router);
-      if (!user_id) return;
+      if (isOffline) {
+        // Offline mode: Retrieve cached data
+        const savedRiceVariety = await AsyncStorage.getItem(
+          `cachedRiceVariety_${riceLandId}`
+        );
 
-      if (!rice_land_id) return;
+        console.log("Cached Rice Variety (Offline):", savedRiceVariety);
 
-      console.log(rice_land_id);
+        if (savedRiceVariety) {
+          const parsedData = JSON.parse(savedRiceVariety);
+          console.log("Parsed Rice Variety (Offline):", parsedData);
 
-      const response = await api.get(`/get_rice_variety/${rice_land_id}`);
-
-      if (response.status === 200) {
-        console.log("Rice Variety:", response.data.variety);
-        setRiceVariety(response.data.variety);
+          if (parsedData && parsedData.id && parsedData.rice_variety_name) {
+            setRiceVariety(parsedData);
+          } else {
+            console.error("Invalid cached rice variety data:", parsedData);
+            setRiceVariety(null);
+          }
+        } else {
+          console.log("No cached rice variety found.");
+          setRiceVariety(null);
+        }
       } else {
-        console.error("Error fetching rice variety:", response.data.error);
-        setRiceVariety(null);
+        // Online mode: Fetch fresh data
+        const user_id = await getUserIdOrLogout(router);
+        if (!user_id) return;
+        if (!rice_land_id) return;
+
+        console.log("Fetching rice variety for rice_land_id:", rice_land_id);
+
+        const response = await api.get(`/get_rice_variety/${rice_land_id}`);
+        if (response.status === 200) {
+          console.log("Rice Variety (Online):", response.data.variety);
+          setRiceVariety(response.data.variety);
+
+          // Save rice variety to AsyncStorage
+          await AsyncStorage.setItem(
+            `cachedRiceVariety_${rice_land_id}`,
+            JSON.stringify(response.data.variety)
+          );
+
+          // Log the saved rice variety
+          const savedRiceVariety = await AsyncStorage.getItem(
+            `cachedRiceVariety_${rice_land_id}`
+          );
+          console.log("Saved Rice Variety (Online):", savedRiceVariety);
+        } else {
+          console.error("Error fetching rice variety:", response.data.error);
+          setRiceVariety(null);
+        }
       }
     } catch (error) {
       console.error("Network error:", error);
@@ -47,8 +113,10 @@ const Index: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchRiceVariety();
-  }, []);
+    if (riceLandId) {
+      fetchRiceVariety();
+    }
+  }, [riceLandId, isOffline]);
 
   if (loading) {
     return (
