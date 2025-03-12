@@ -1,4 +1,10 @@
-import { View, Alert, TouchableOpacity, FlatList } from "react-native";
+import {
+  View,
+  Alert,
+  TouchableOpacity,
+  FlatList,
+  ScrollView,
+} from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
 import api from "@/services/api";
@@ -31,18 +37,19 @@ export default function Index() {
   const [currentDayIndex, setCurrentDayIndex] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const { land_id } = useLocalSearchParams();
-  const [question, setQuestion] = useState("");
+  const [question, setQuestion] = useState<string>("");
+  const [answer, setAnswer] = useState<string>("");
 
   const stageIcons: { [key: string]: string } = {
-    "Germination": "sprout",
+    Germination: "sprout",
     "Seeding Establishment": "sprout-outline",
-    "Tillering": "grass",
+    Tillering: "grass",
     "Panicle Initiation": "leaf",
-    "Booting": "leaf-maple",
-    "Heading": "corn",
-    "Flowering": "flower",
+    Booting: "leaf-maple",
+    Heading: "corn",
+    Flowering: "flower",
     "Grain Filling": "wheat",
-    "Maturity": "rice",
+    Maturity: "rice",
   };
 
   const today = new Date().toISOString().split("T")[0];
@@ -189,6 +196,31 @@ export default function Index() {
     } catch (error) {
       console.error("Error fetching weather data:", error);
       Alert.alert("Error", "Unable to fetch weather data.");
+    }
+  };
+
+  const handleAskQuestion = async () => {
+    if (!question.trim()) {
+      alert("Please enter a question.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await api.post("/ask_question", { question });
+      console.log("API Response:", response.data);
+      // Ensure the response is in the expected format
+      if (response.data && typeof response.data === "object") {
+        // Extract the message or data from the response
+        const answerText = response.data.data;
+        setAnswer(answerText);
+      } else {
+        setAnswer("Sorry, I couldn't process your question.");
+      }
+    } catch (error) {
+      console.error("Error asking question:", error);
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -383,74 +415,105 @@ export default function Index() {
                     alignItems: "center",
                   }}
                 >
+                  {/* TextInput for Question */}
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      backgroundColor: "transparent",
+                      width: "100%",
+                    }}
+                    value={question}
+                    placeholder="Type your question here..."
+                    onChangeText={(text) => setQuestion(text)}
+                    autoCapitalize="none"
+                  />
+
                   {/* Search Icon */}
                   <Icon
                     name="search-web"
                     size={20}
                     color="#000"
+                    onPress={handleAskQuestion}
                     style={{ marginRight: 0, marginLeft: 0 }}
                   />
-
-                  {/* TextInput for Question */}
-                  <TextInput
-                    style={{ flex: 1, backgroundColor: "transparent", width: "100%" }}
-                    value={question}
-                    placeholder="Type your question here..."
-                    onChangeText={(text) => setQuestion(text)}
-                  />
                 </View>
-                <View>
-                  <Text
-                    style={[
-                      GlobalStyles.dataText,
-                      { fontSize: 20, fontWeight: "bold", textAlign: "center" },
-                    ]}
-                  >
-                    {weatherData?.daily
-                      ? weatherDescriptions[
-                          weatherData.daily.weathercode[currentDayIndex]
-                        ] || "Unknown"
-                      : "Loading..."}
-                  </Text>
-                  {advisories.length > 0 ? (
-                    advisories.map((advisory, index) => (
-                      <Text key={index} style={[GlobalStyles.dataText]}>
-                        • {advisory}
-                      </Text>
-                    ))
-                  ) : (
-                    <Text>No advisories available</Text>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {/* Result Container */}
+                  {answer && (
+                    <View
+                      style={{
+                        width: "100%",
+                        marginBottom: 10,
+                        borderColor: "#EBEBEB",
+                        borderWidth: 1,
+                        borderRadius: 20,
+                        justifyContent: "center",
+                        paddingHorizontal: 15,
+                        paddingVertical: 10,
+                        backgroundColor: "#fff",
+                      }}
+                    >
+                      <Text style={[GlobalStyles.dataText]}>{answer}</Text>
+                    </View>
                   )}
-                </View>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    width: "100%",
-                    gap: 10,
-                    marginTop: 20,
-                  }}
-                >
-                  <Button
-                    icon="chevron-left"
-                    mode="contained"
-                    style={[GlobalStyles.button, { width: "30%" }]}
-                    onPress={handlePreviousDay}
-                    disabled={currentDayIndex === 0}
+
+                  <View>
+                    <Text
+                      style={[
+                        GlobalStyles.dataText,
+                        {
+                          fontSize: 20,
+                          fontWeight: "bold",
+                          textAlign: "center",
+                        },
+                      ]}
+                    >
+                      {weatherData?.daily
+                        ? weatherDescriptions[
+                            weatherData.daily.weathercode[currentDayIndex]
+                          ] || "Unknown"
+                        : "Loading..."}
+                    </Text>
+                    {advisories.length > 0 ? (
+                      advisories.map((advisory, index) => (
+                        <Text key={index} style={[GlobalStyles.dataText]}>
+                          • {advisory}
+                        </Text>
+                      ))
+                    ) : (
+                      <Text>No advisories available</Text>
+                    )}
+                  </View>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      width: "100%",
+                      gap: 10,
+                      marginTop: 20,
+                    }}
                   >
-                    Previous
-                  </Button>
-                  <Button
-                    icon="chevron-right"
-                    mode="contained"
-                    style={[GlobalStyles.button, { width: "30%" }]}
-                    onPress={handleNextDay}
-                    disabled={currentDayIndex === 6}
-                  >
-                    Next
-                  </Button>
-                </View>
+                    <Button
+                      icon="chevron-left"
+                      mode="contained"
+                      style={[GlobalStyles.button, { width: "30%" }]}
+                      onPress={handlePreviousDay}
+                      disabled={currentDayIndex === 0}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      icon="chevron-right"
+                      mode="contained"
+                      style={[GlobalStyles.button, { width: "30%" }]}
+                      onPress={handleNextDay}
+                      disabled={currentDayIndex === 6}
+                    >
+                      Next
+                    </Button>
+                  </View>
+                </ScrollView>
               </>
             ) : (
               <Text>No data available</Text>

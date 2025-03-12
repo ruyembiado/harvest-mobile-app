@@ -251,4 +251,69 @@ class AICoontroller extends Controller
             'date' => $date,
         ]);
     }
+
+    public function ask_question(Request $request)
+    {
+        $question = trim($request->question);
+
+        if (empty($question)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Question cannot be empty.',
+            ], 400);
+        }
+
+        $prompt = "You are an Agriculture Expert. I want to ask: $question?";
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('OPENAI_API_KEY'),
+                'Content-Type' => 'application/json',
+            ])->timeout(30)->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-3.5-turbo',
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are a helpful assistant.'],
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'max_tokens' => 500,
+                'temperature' => 0.7,
+            ]);
+
+            if (!$response->successful()) {
+                Log::error('OpenAI API Error:', ['response' => $response->json()]);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Failed to generate response from AI.',
+                ], 500);
+            }
+
+            $data = $response->json();
+
+            // Ensure response contains choices
+            if (!isset($data['choices'][0]['message']['content'])) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No valid response from AI.',
+                ], 500);
+            }
+
+            $generatedText = $data['choices'][0]['message']['content'];
+
+            // Remove possible Markdown artifacts
+            $generatedText = preg_replace('/^```(?:json)?\s*|\s*```$/', '', trim($generatedText));
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Answer generated successfully.',
+                'data' => $generatedText,
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error('Exception:', ['message' => $e->getMessage()]);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => 'An error occurred: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }

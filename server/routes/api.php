@@ -49,6 +49,7 @@ Route::delete('/delete_rice_variety', [RiceVarietyController::class, 'delete_ric
 // AI
 Route::post('/generate_stage_growth_schedule', [AICoontroller::class, 'generate_stage_growth_schedule']);
 Route::post('/generate_advisories', [AICoontroller::class, 'generate_advisories']);
+Route::post('/ask_question', [AICoontroller::class, 'ask_question']);
 
 // Rice Growth Stages
 Route::get('/get_rice_growth_stages/{rice_land_id}', [RiceGrowthStageController::class, 'get_rice_land_stages_by_land_id']);
