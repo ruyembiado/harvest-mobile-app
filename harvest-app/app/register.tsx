@@ -1,5 +1,5 @@
 import React from "react";
-import { View, StyleSheet, Alert } from "react-native";
+import { View, Alert } from "react-native";
 import {
   Provider as PaperProvider,
   Text,
@@ -11,8 +11,10 @@ import { Link } from "expo-router";
 import GlobalStyles from "../assets/styles/styles";
 import customTheme from "../assets/styles/theme";
 import api from "../services/api";
+import { useTranslation } from "react-i18next"; // Import useTranslation hook
 
 const Register: React.FC = () => {
+  const { t } = useTranslation(); // Use the translation hook
   const [email, setEmail] = React.useState<string>("");
   const [password, setPassword] = React.useState<string>("");
   const [name, setName] = React.useState<string>("");
@@ -22,24 +24,24 @@ const Register: React.FC = () => {
 
   const handleRegister = async () => {
     if (password !== confirm_pass) {
-      alert("Passwords do not match!");
+      alert(t("password_mismatch")); // Translate alert message
       return;
     }
 
     if (!email) {
-      alert("Email is required.");
+      alert(t("email_required")); // Translate alert message
       return;
     }
     if (!password) {
-      alert("Password is required.");
+      alert(t("password_required")); // Translate alert message
       return;
     }
     if (!name) {
-      alert("Name is required.");
+      alert(t("name_required")); // Translate alert message
       return;
     }
     if (!phone) {
-      alert("Phone is required.");
+      alert(t("phone_required")); // Translate alert message
       return;
     }
 
@@ -59,10 +61,10 @@ const Register: React.FC = () => {
       setPhoneNumber("");
       setPassword("");
       setConfirmPass("");
-      alert(response.data.message);
+      alert(t("registration_successful")); // Translate alert message
     } catch (error) {
       console.error("Registration error:", error);
-      Alert.alert("Registration failed", "Please try again.");
+      Alert.alert(t("registration_failed"), t("try_again")); // Translate alert messages
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ const Register: React.FC = () => {
               H.A.R.V.E.S.T
             </Text>
             <TextInput
-              label="Full Name"
+              label={t("full_name")} // Translate label
               value={name}
               onChangeText={(name) => setName(name)}
               mode="outlined"
@@ -85,7 +87,7 @@ const Register: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Email"
+              label={t("email")} // Translate label
               value={email}
               onChangeText={(email) => setEmail(email)}
               mode="outlined"
@@ -94,7 +96,7 @@ const Register: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Phone Number"
+              label={t("phone_number")} // Translate label
               value={phone}
               onChangeText={(phone) => setPhoneNumber(phone)}
               mode="outlined"
@@ -103,7 +105,7 @@ const Register: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Password"
+              label={t("password")} // Translate label
               value={password}
               onChangeText={(password) => setPassword(password)}
               mode="outlined"
@@ -112,7 +114,7 @@ const Register: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Confirm Password"
+              label={t("confirm_password")} // Translate label
               value={confirm_pass}
               onChangeText={(confirm_pass) => setConfirmPass(confirm_pass)}
               mode="outlined"
@@ -128,13 +130,13 @@ const Register: React.FC = () => {
               loading={loading} // Show loading spinner when registering
               disabled={loading} // Disable the button while loading
             >
-              Register
+              {t("register")} {/* Translate button text */}
             </Button>
 
             <Text>
-              Already have an account?
+              {t("already_have_an_account")}{" "} {/* Translate text */}
               <Link href="/" style={GlobalStyles.registerLink}>
-                Login here
+                {t("login_here")} {/* Translate link text */}
               </Link>
             </Text>
           </Card.Content>
@@ -143,4 +145,5 @@ const Register: React.FC = () => {
     </PaperProvider>
   );
 };
+
 export default Register;

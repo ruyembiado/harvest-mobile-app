@@ -14,9 +14,12 @@ import api from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { registerBackgroundTask } from "../services/notification";
-import NetInfo from "@react-native-community/netinfo"; // Updated import
+import NetInfo from "@react-native-community/netinfo";
+import { useTranslation } from "react-i18next";
+import { changeLanguage, loadLanguage } from "../i18n";
 
 const Index: React.FC = () => {
+  const { t, i18n } = useTranslation(); // Use the translation hook
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
@@ -32,12 +35,24 @@ const Index: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Load language on component mount
+  useEffect(() => {
+    loadLanguage().then(() => {
+      console.log("Language loaded:", i18n.language);
+    });
+  }, []);
+
+  // Debugging: Log the current language
+  useEffect(() => {
+    console.log("Current language:", i18n.language);
+  }, [i18n.language]);
+
   // Request notification permissions
   useEffect(() => {
     async function requestPermissions() {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") {
-        alert("You need to enable notifications to use this feature.");
+        alert(t("notifications_permission_required")); // Translate alert message
       }
     }
     requestPermissions();
@@ -78,11 +93,11 @@ const Index: React.FC = () => {
 
   const handleLogin = async () => {
     if (!email) {
-      alert("Email is required.");
+      alert(t("email_required")); // Translate alert message
       return;
     }
     if (!password) {
-      alert("Password is required.");
+      alert(t("password_required")); // Translate alert message
       return;
     }
 
@@ -93,16 +108,10 @@ const Index: React.FC = () => {
         // Offline mode: Use stored credentials
         const storedToken = await AsyncStorage.getItem("authToken");
         if (storedToken) {
-          Alert.alert(
-            "Offline Mode",
-            "You are logged in using cached credentials."
-          );
+          Alert.alert(t("offline_mode"), t("offline_login_success")); // Translate alert messages
           router.replace("/(condition)");
         } else {
-          Alert.alert(
-            "Offline Mode",
-            "No cached credentials found. Please go online to log in."
-          );
+          Alert.alert(t("offline_mode"), t("offline_login_failed")); // Translate alert messages
         }
       } else {
         // Online mode: Make API request
@@ -121,11 +130,11 @@ const Index: React.FC = () => {
         console.log("User ID:", user_id);
 
         router.replace("/(condition)");
-        Alert.alert("Login Successful.");
+        Alert.alert(t("login_successful")); // Translate alert message
       }
     } catch (error) {
-      console.error("Login error:", error);
-      Alert.alert("Invalid Credentials", "Please try again.");
+      // console.error("Login error:", error);
+      Alert.alert(t("invalid_credentials"), t("try_again")); // Translate alert messages
     } finally {
       setLoading(false);
     }
@@ -140,7 +149,7 @@ const Index: React.FC = () => {
               H.A.R.V.E.S.T
             </Text>
             <TextInput
-              label="Email"
+              label={t("email")} // Translate label
               value={email}
               onChangeText={(email) => setEmail(email)}
               mode="outlined"
@@ -149,7 +158,7 @@ const Index: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Password"
+              label={t("password")} // Translate label
               value={password}
               onChangeText={(password) => setPassword(password)}
               mode="outlined"
@@ -165,13 +174,13 @@ const Index: React.FC = () => {
               loading={loading}
               disabled={loading}
             >
-              Login
+              {t("login")} {/* Translate button text */}
             </Button>
 
             <Text>
-              Don't have an account?
+              {t("dont_have_an_account")}{" "} {/* Translate text */}
               <Link href="/register" style={GlobalStyles.registerLink}>
-                Register here
+                {t("register_here")} {/* Translate link text */}
               </Link>
             </Text>
           </Card.Content>

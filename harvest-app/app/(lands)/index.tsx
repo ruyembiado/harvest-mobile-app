@@ -20,6 +20,8 @@ import * as Notifications from "expo-notifications";
 import { registerBackgroundTask } from "../../services/notification";
 import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
 import { useRiceLand } from "../../context/RiceLandContext";
+import { useTranslation } from 'react-i18next';
+import { changeLanguage, loadLanguage } from '../../i18n';
 
 // Set up the notification handler
 Notifications.setNotificationHandler({
@@ -31,6 +33,7 @@ Notifications.setNotificationHandler({
 });
 
 const Index: React.FC = () => {
+  const { t, i18n } = useTranslation(); // Use the translation hook
   const [riceLands, setRiceLands] = useState<Array<any>>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [visible, setVisible] = useState(false);
@@ -48,6 +51,18 @@ const Index: React.FC = () => {
       console.error("Failed to save riceLandId to AsyncStorage:", error);
     }
   };
+
+  // Load language on component mount
+  useEffect(() => {
+    loadLanguage().then(() => {
+      console.log("Language loaded:", i18n.language);
+    });
+  }, []);
+
+  // Debugging: Log the current language
+  useEffect(() => {
+    console.log('Current language:', i18n.language);
+  }, [i18n.language]);
 
   // Check network connectivity
   useEffect(() => {
@@ -71,12 +86,9 @@ const Index: React.FC = () => {
         const cachedRiceLands = await AsyncStorage.getItem("cachedRiceLands");
         if (cachedRiceLands) {
           setRiceLands(JSON.parse(cachedRiceLands));
-          Alert.alert("Offline Mode", "Displaying cached rice lands data.");
+          Alert.alert(t("offline_mode"), t("displaying_cached_data"));
         } else {
-          Alert.alert(
-            "Offline Mode",
-            "No cached data found. Please go online to fetch data."
-          );
+          Alert.alert(t("offline_mode"), t("no_cached_data_found"));
         }
       } else {
         console.log("Online Mode");
@@ -112,15 +124,15 @@ const Index: React.FC = () => {
       }
 
       Alert.alert(
-        "Confirm Deletion",
-        "Are you sure you want to delete this rice land?",
+        t("confirm_deletion"),
+        t("confirm_delete_rice_land"),
         [
           {
-            text: "Cancel",
+            text: t("cancel"),
             style: "cancel",
           },
           {
-            text: "Delete",
+            text: t("delete"),
             style: "destructive",
             onPress: async () => {
               setLoading(true);
@@ -131,7 +143,7 @@ const Index: React.FC = () => {
                 },
               });
               if (response.status === 200) {
-                alert("Rice land deleted successfully!");
+                alert(t("rice_land_deleted"));
                 fetchRiceLands(); // Refresh the list
               } else {
                 console.error("Error deleting rice land:", response.data.error);
@@ -174,23 +186,19 @@ const Index: React.FC = () => {
     <PaperProvider theme={customTheme}>
       <View style={[GlobalStyles.TitleContainer]}>
         <Text variant="headlineLarge" style={[GlobalStyles.title]}>
-          Rice Lands
+          {t("rice_lands")} 
         </Text>
       </View>
       <Card style={GlobalStyles.RiceLandCard}>
         <Card.Content>
           <View style={[GlobalStyles.RiceLandContainer]}>
             <View>
-              {/* {!isOffline && (
-                <> */}
-                  <Button
-                    mode="contained"
-                    style={[GlobalStyles.addButton, { marginBottom: 20 }]}
-                  >
-                    <Link href="/(lands)/add_land">Add</Link>
-                  </Button>
-                {/* </>
-              )} */}
+              <Button
+                mode="contained"
+                style={[GlobalStyles.addButton, { marginBottom: 20, width: "50%" }]}
+              >
+                <Link href="/(lands)/add_land">{t("add")}</Link> 
+              </Button>
               <ScrollView
                 contentContainerStyle={[
                   GlobalStyles.RiceLandScrollContainer,
@@ -228,10 +236,8 @@ const Index: React.FC = () => {
                                 handleSelectRiceLand(land.id);
                                 router.push(`/(tabs)/?id=${land.id}`);
                               }}
-                              title="View"
+                              title={t("view")}
                             />
-                            {/* {!isOffline && (
-                              <> */}
                             <Menu.Item
                               onPress={() => {
                                 setVisible(false);
@@ -239,22 +245,16 @@ const Index: React.FC = () => {
                                   `/(lands)/update_land?id=${land.id}`
                                 );
                               }}
-                              title="Update"
+                              title={t("update")}
                             />
-                            {/* </>
-                            )} */}
                             <Divider />
-                            {/* {!isOffline && (
-                              <> */}
                             <Menu.Item
                               onPress={() => {
                                 setVisible(false);
                                 deleteRiceLand(land.id);
                               }}
-                              title="Delete"
+                              title={t("delete")} 
                             />
-                            {/* </>
-                            )} */}
                           </Menu>
                         </View>
                         <Text style={GlobalStyles.RiceLandTitle}>
@@ -266,7 +266,7 @@ const Index: React.FC = () => {
                 ) : (
                   <View style={[GlobalStyles.noDataTextContainer]}>
                     <Text style={[GlobalStyles.dataText]}>
-                      No rice lands available.
+                      {t("no_rice_lands_available")} {/* Translate "No rice lands available" */}
                     </Text>
                   </View>
                 )}

@@ -65,7 +65,6 @@ const SettingScreen: React.FC = () => {
   };
 
   const handleUpdate = async () => {
-
     if (password && !confirm_pass) {
       Alert.alert("Error", "Please confirm your password");
       return;
@@ -113,15 +112,29 @@ const SettingScreen: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.clear();
-    Alert.alert("Logged out", "You have been logged out");
-    router.replace("../../login");
+    try {
+      // List of keys to delete
+      const keysToDelete = ["user_id", "authToken"];
+      // Remove each key from AsyncStorage
+      await Promise.all(
+        keysToDelete.map((key) => AsyncStorage.removeItem(key))
+      );
+      Alert.alert("Logged out", "You have been logged out");
+      router.replace("../../login");
+    } catch (error) {
+      // console.error("Error during logout:", error);
+      // Alert.alert("Error", "logout failed");
+    }
   };
 
   return (
     <PaperProvider theme={customTheme}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 0, marginBottom: 0 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom: 0,
+          marginBottom: 0,
+        }}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -207,7 +220,10 @@ const SettingScreen: React.FC = () => {
             </RadioButton.Group>
           </View>
           <View
-            style={[GlobalStyles.Weathercard, { width: 330, marginTop: 0, marginBottom: 0 }]}
+            style={[
+              GlobalStyles.Weathercard,
+              { width: 330, marginTop: 0, marginBottom: 0 },
+            ]}
           >
             <Button
               mode="contained"

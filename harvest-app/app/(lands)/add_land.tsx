@@ -15,8 +15,11 @@ import customTheme from "../../assets/styles/theme";
 import api from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
+import { useTranslation } from "react-i18next";
+import { changeLanguage, loadLanguage } from "../../i18n";
 
 const AddLand: React.FC = () => {
+  const { t, i18n } = useTranslation(); // Use the translation hook
   const [rice_land_name, setRiceLandName] = React.useState<string>("");
   const [rice_land_lat, setRiceLandLat] = React.useState<string>("");
   const [rice_land_long, setRiceLandLong] = React.useState<string>("");
@@ -40,6 +43,18 @@ const AddLand: React.FC = () => {
   const riceLandStages = [
     { label: "Not Yet Started", value: "Not Yet Started" },
   ];
+
+  // Load language on component mount
+    useEffect(() => {
+      loadLanguage().then(() => {
+        console.log("Language loaded:", i18n.language);
+      });
+    }, []);
+  
+    // Debugging: Log the current language
+    useEffect(() => {
+      console.log('Current language:', i18n.language);
+    }, [i18n.language]);
 
   // Fetch current location
   const fetchLocation = async () => {
