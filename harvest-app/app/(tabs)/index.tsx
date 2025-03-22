@@ -1,21 +1,17 @@
 import { View, Alert, ScrollView } from "react-native";
-import { useRouter, useLocalSearchParams, Link } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { useRouter, useLocalSearchParams, Link, useFocusEffect } from "expo-router";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "@/services/api";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useNavigation } from "@react-navigation/native";
-import {
-  Text,
-  Button,
-  ActivityIndicator,
-  PaperProvider,
-} from "react-native-paper";
+import { Text, Button, ActivityIndicator, PaperProvider } from "react-native-paper";
 import * as Location from "expo-location";
 import { useRiceLand } from "../../context/RiceLandContext";
-import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../../hooks/translateText";
 
 export default function Index() {
   const { riceLandId, setRiceLandId } = useRiceLand();
@@ -31,56 +27,141 @@ export default function Index() {
   const [weatherLoading, setWeatherLoading] = useState<boolean>(false);
   const [weatherData, setWeatherData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [isOffline, setIsOffline] = useState<boolean>(false); 
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    fetchingPlace: "Fetching place...",
+    offlineMode: "Offline Mode",
+    displayingCachedData: "Displaying cached data.",
+    noCachedData: "No cached data found. Please go online to fetch data.",
+    location: "LOCATION:",
+    landSizeHectares: "LAND SIZE (hectares):",
+    landSizeSQM: "LAND SIZE (sqm):",
+    landCondition: "LAND CONDITION:",
+    riceGrowth: "RICE GROWTH:",
+    riceVariety: "Rice Variety",
+    advisories: "Advisories",
+    noDataAvailable: "No data available",
+    selectCondition: "-- Select Condition --",
+    irrigatedLowlandRice: "Irrigated Lowland Rice",
+    rainfedLowlandRice: "Rainfed Lowland Rice",
+    uplandRice: "Upland Rice",
+    notYetStarted: "Not Yet Started",
+    germination: "Germination",
+    seedingEstablishment: "Seeding Establishment",
+    tillering: "Tillering",
+    panicleInitiation: "Panicle Initiation",
+    booting: "Booting",
+    heading: "Heading",
+    flowering: "Flowering",
+    grainFilling: "Grain Filling",
+    maturity: "Maturity",
+  });
+
+  const [riceLandConditions, setRiceLandConditions] = useState([
+    { label: translations.selectCondition, value: "" },
+    { label: translations.irrigatedLowlandRice, value: "Irrigated Lowland Rice" },
+    { label: translations.rainfedLowlandRice, value: "Rainfed Lowland Rice" },
+    { label: translations.uplandRice, value: "Upland Rice" },
+  ]);
+
+  const [riceLandStages, setRiceLandStages] = useState([
+    { label: translations.notYetStarted, value: "Not Yet Started" },
+    { label: translations.germination, value: "Germination" },
+    { label: translations.seedingEstablishment, value: "Seeding Establishment" },
+    { label: translations.tillering, value: "Tillering" },
+    { label: translations.panicleInitiation, value: "Panicle Initiation" },
+    { label: translations.booting, value: "Booting" },
+    { label: translations.heading, value: "Heading" },
+    { label: translations.flowering, value: "Flowering" },
+    { label: translations.grainFilling, value: "Grain Filling" },
+    { label: translations.maturity, value: "Maturity" },
+  ]);
+
   const router = useRouter();
   const { id } = useLocalSearchParams();
   const navigation = useNavigation();
 
-  const riceLandConditions = [
-    { label: "-- Select Condition --", value: "" },
-    { label: "Irrigated Lowland Rice", value: "Irrigated Lowland Rice" },
-    { label: "Rainfed Lowland Rice", value: "Rainfed Lowland Rice" },
-    { label: "Upland Rice", value: "Upland Rice" },
-  ];
-  const riceLandStages = [
-    { label: "Not Yet Started", value: "Not Yet Started" },
-    { label: "Germination", value: "Germination" },
-    { label: "Seeding Establishment", value: "Seeding Establishment" },
-    { label: "Tillering", value: "Tillering" },
-    { label: "Panicle Initiation", value: "Panicle Initiation" },
-    { label: "Booting", value: "Booting" },
-    { label: "Heading", value: "Heading" },
-    { label: "Flowering", value: "Flowering" },
-    { label: "Grain Filling", value: "Grain Filling" },
-    { label: "Maturity", value: "Maturity" },
-  ];
-
-  const today = new Date().toISOString().split("T")[0];
-
-  useEffect(() => {
-    if (rice_land_name) {
-      navigation.setOptions({ title: rice_land_name });
-    }
-  }, [rice_land_name, navigation, isOffline]);
-
-  useEffect(() => {
-    const loadRiceLandId = async () => {
-      try {
-        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
-        if (savedRiceLandId) {
-          const id = parseInt(savedRiceLandId, 10); // Convert string to number
-          if (!isNaN(id)) {
-            setRiceLandId(id); // Update the state
-            console.log("Rice Land ID loaded from AsyncStorage:", id);
-          }
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
         }
-      } catch (error) {
-        console.error("Failed to load riceLandId from AsyncStorage:", error);
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        fetchingPlace: "Fetching place...",
+        offlineMode: "Offline Mode",
+        displayingCachedData: "Displaying cached data.",
+        noCachedData: "No cached data found. Please go online to fetch data.",
+        location: "LOCATION:",
+        landSizeHectares: "LAND SIZE (hectares):",
+        landSizeSQM: "LAND SIZE (sqm):",
+        landCondition: "LAND CONDITION:",
+        riceGrowth: "RICE GROWTH:",
+        riceVariety: "Rice Variety",
+        advisories: "Advisories",
+        noDataAvailable: "No data available",
+        selectCondition: "-- Select Condition --",
+        irrigatedLowlandRice: "Irrigated Lowland Rice",
+        rainfedLowlandRice: "Rainfed Lowland Rice",
+        uplandRice: "Upland Rice",
+        notYetStarted: "Not Yet Started",
+        germination: "Germination",
+        seedingEstablishment: "Seeding Establishment",
+        tillering: "Tillering",
+        panicleInitiation: "Panicle Initiation",
+        booting: "Booting",
+        heading: "Heading",
+        flowering: "Flowering",
+        grainFilling: "Grain Filling",
+        maturity: "Maturity",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
       }
+
+      setTranslations(translated);
+
+      // Update riceLandConditions and riceLandStages with translated labels
+      setRiceLandConditions([
+        { label: translated.selectCondition, value: "" },
+        { label: translated.irrigatedLowlandRice, value: "Irrigated Lowland Rice" },
+        { label: translated.rainfedLowlandRice, value: "Rainfed Lowland Rice" },
+        { label: translated.uplandRice, value: "Upland Rice" },
+      ]);
+
+      setRiceLandStages([
+        { label: translated.notYetStarted, value: "Not Yet Started" },
+        { label: translated.germination, value: "Germination" },
+        { label: translated.seedingEstablishment, value: "Seeding Establishment" },
+        { label: translated.tillering, value: "Tillering" },
+        { label: translated.panicleInitiation, value: "Panicle Initiation" },
+        { label: translated.booting, value: "Booting" },
+        { label: translated.heading, value: "Heading" },
+        { label: translated.flowering, value: "Flowering" },
+        { label: translated.grainFilling, value: "Grain Filling" },
+        { label: translated.maturity, value: "Maturity" },
+      ]);
+
+      setIsTranslating(false);
     };
 
-    loadRiceLandId();
-  }, []);
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
 
   // Check network connectivity
   useEffect(() => {
@@ -98,18 +179,13 @@ export default function Index() {
     try {
       if (isOffline) {
         // Offline mode: Retrieve cached data
-        const cachedRiceLand = await AsyncStorage.getItem(
-          `cachedRiceLand_${id}`
-        );
+        const cachedRiceLand = await AsyncStorage.getItem(`cachedRiceLand_${id}`);
         if (cachedRiceLand) {
           const data = JSON.parse(cachedRiceLand);
           setRiceLandData(data);
-          Alert.alert("Offline Mode", "Displaying cached rice land data.");
+          Alert.alert(translations.offlineMode, translations.displayingCachedData);
         } else {
-          Alert.alert(
-            "Offline Mode",
-            "No cached data found. Please go online to fetch data."
-          );
+          Alert.alert(translations.offlineMode, translations.noCachedData);
         }
       } else {
         // Online mode: Fetch data from API
@@ -118,19 +194,11 @@ export default function Index() {
         setRiceLandData(data);
 
         // Cache the fetched data
-        await AsyncStorage.setItem(
-          `cachedRiceLand_${id}`,
-          JSON.stringify(data)
-        );
-
-        const cachedRiceLand = await AsyncStorage.getItem(
-          `cachedRiceLand_${id}`
-        );
-        console.log("cached cachedRiceLand:", cachedRiceLand);
+        await AsyncStorage.setItem(`cachedRiceLand_${id}`, JSON.stringify(data));
       }
     } catch (error) {
-      // console.error("Error fetching land details:", error);
-      // Alert.alert("Error", "Unable to fetch land details.");
+      console.error("Error fetching land details:", error);
+      Alert.alert(translations.error, translations.fetchFailed);
     } finally {
       setLoading(false);
     }
@@ -155,17 +223,12 @@ export default function Index() {
     try {
       if (isOffline) {
         // Offline mode: Retrieve cached data
-        const cachedWeatherData = await AsyncStorage.getItem(
-          `cachedWeatherData_${id}`
-        );
+        const cachedWeatherData = await AsyncStorage.getItem(`cachedWeatherData_${id}`);
         if (cachedWeatherData) {
           setWeatherData(JSON.parse(cachedWeatherData));
-          Alert.alert("Offline Mode", "Displaying cached weather data.");
+          Alert.alert(translations.offlineMode, translations.displayingCachedData);
         } else {
-          Alert.alert(
-            "Offline Mode",
-            "No cached data found. Please go online to fetch data."
-          );
+          Alert.alert(translations.offlineMode, translations.noCachedData);
         }
       } else {
         const response = await api.get(
@@ -178,15 +241,10 @@ export default function Index() {
           `cachedWeatherData_${id}`,
           JSON.stringify(response.data.current_weather)
         );
-
-        const cachedWeatherData = await AsyncStorage.getItem(
-          `cachedWeatherData_${id}`
-        );
-        console.log("cached cachedWeatherData:", cachedWeatherData);
       }
     } catch (error) {
-      // console.error("Error fetching weather data:", error);
-      // Alert.alert("Error", "Unable to fetch weather data.");
+      console.error("Error fetching weather data:", error);
+      Alert.alert(translations.error, translations.fetchFailed);
     } finally {
       setWeatherLoading(false);
     }
@@ -209,16 +267,14 @@ export default function Index() {
       if (result.length > 0) {
         let place = result[0];
         setPlaceName(
-          `${place.city || "Unknown place"}, ${
-            place.region || "Unknown region"
-          }, ${place.country || "Unknown country"}`
+          `${place.city || "Unknown place"}, ${place.region || "Unknown region"}, ${place.country || "Unknown country"}`
         );
       } else {
-        setPlaceName("Place not found");
+        setPlaceName(translations.fetchingPlace);
       }
     } catch (error) {
-      // console.error("Error fetching place:", error);
-      // Alert.alert("Error", "Failed to fetch place name.");
+      console.error("Error fetching place:", error);
+      Alert.alert("Error", "Failed to fetch place name.");
     }
   };
 
@@ -270,6 +326,18 @@ export default function Index() {
     month: "long",
     day: "numeric",
   });
+
+  if (isTranslating) {
+    return (
+      <View style={GlobalStyles.loadingContainer}>
+        <ActivityIndicator
+          animating={true}
+          size="large"
+          color={GlobalStyles.activityIndicator.color}
+        />
+      </View>
+    );
+  }
 
   return (
     <PaperProvider theme={customTheme}>
@@ -345,25 +413,31 @@ export default function Index() {
                     </View>
                   </View>
                   <View style={[GlobalStyles.mainDetailContainer]}>
-                    <Text style={GlobalStyles.label}>LOCATION:</Text>
+                    <Text style={GlobalStyles.label}>
+                      {translations.location}
+                    </Text>
                     <Text style={[GlobalStyles.dataText]}>{placeName}</Text>
                   </View>
                   <View style={[GlobalStyles.mainDetailContainer]}>
                     <Text style={GlobalStyles.label}>
-                      LAND SIZE (hectares):
+                      {translations.landSizeHectares}
                     </Text>
                     <Text style={[GlobalStyles.dataText]}>
                       {rice_land_size || 0} Hectares
                     </Text>
                   </View>
                   <View style={[GlobalStyles.mainDetailContainer]}>
-                    <Text style={GlobalStyles.label}>LAND SIZE (sqm):</Text>
+                    <Text style={GlobalStyles.label}>
+                      {translations.landSizeSQM}
+                    </Text>
                     <Text style={[GlobalStyles.dataText]}>
                       {rice_land_size_sqm || 0} sqm
                     </Text>
                   </View>
                   <View style={[GlobalStyles.mainDetailContainer]}>
-                    <Text style={GlobalStyles.label}>LAND CONDITION:</Text>
+                    <Text style={GlobalStyles.label}>
+                      {translations.landCondition}
+                    </Text>
                     <Text style={GlobalStyles.dataText}>
                       {riceLandConditions.find(
                         (condition) => condition.value === rice_land_condition
@@ -371,7 +445,9 @@ export default function Index() {
                     </Text>
                   </View>
                   <View style={[GlobalStyles.mainDetailContainer]}>
-                    <Text style={GlobalStyles.label}>RICE GROWTH:</Text>
+                    <Text style={GlobalStyles.label}>
+                      {translations.riceGrowth}
+                    </Text>
                     <Text style={GlobalStyles.dataText}>
                       {riceLandStages.find(
                         (stage) => stage.value === rice_land_current_stage
@@ -390,7 +466,7 @@ export default function Index() {
                       href={`/(rices)?rice_land_id=${riceLandId}`}
                       style={{}}
                     >
-                      Rice Variety
+                      {translations.riceVariety}
                     </Link>
                   </Button>
                   {rice_variety_name !== null && rice_variety_name !== "" && (
@@ -403,13 +479,13 @@ export default function Index() {
                       ]}
                     >
                       <Link href={`/(advisories)?land_id=${riceLandId}`}>
-                        Advisories
+                        {translations.advisories}
                       </Link>
                     </Button>
                   )}
                 </>
               ) : (
-                <Text>No data available</Text>
+                <Text>{translations.noDataAvailable}</Text>
               )}
             </>
           )}

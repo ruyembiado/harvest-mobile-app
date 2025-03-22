@@ -105,6 +105,7 @@ const globalStyles = StyleSheet.create({
     right: 10,
     padding: 0,
     borderRadius: 99,
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
 
   menuButton: {

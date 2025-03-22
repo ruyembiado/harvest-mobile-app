@@ -1,5 +1,5 @@
-import React from "react";
-import { View, Alert } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Alert, ActivityIndicator } from "react-native";
 import {
   Provider as PaperProvider,
   Text,
@@ -11,37 +11,104 @@ import { Link } from "expo-router";
 import GlobalStyles from "../assets/styles/styles";
 import customTheme from "../assets/styles/theme";
 import api from "../services/api";
-import { useTranslation } from "react-i18next"; // Import useTranslation hook
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../hooks/translateText"; // Import translation function
 
 const Register: React.FC = () => {
-  const { t } = useTranslation(); // Use the translation hook
-  const [email, setEmail] = React.useState<string>("");
-  const [password, setPassword] = React.useState<string>("");
-  const [name, setName] = React.useState<string>("");
-  const [phone, setPhoneNumber] = React.useState<string>("");
-  const [confirm_pass, setConfirmPass] = React.useState<string>("");
-  const [loading, setLoading] = React.useState<boolean>(false);
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [phone, setPhoneNumber] = useState<string>("");
+  const [confirm_pass, setConfirmPass] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en"); // Default language
+  const [translations, setTranslations] = useState({
+    fullName: "Full Name",
+    email: "Email",
+    phoneNumber: "Phone Number",
+    password: "Password",
+    confirmPassword: "Confirm Password",
+    register: "Register",
+    alreadyHaveAccount: "Already have an account?",
+    loginHere: "Login here",
+    passwordMismatch: "Passwords do not match.",
+    emailRequired: "Email is required.",
+    passwordRequired: "Password is required.",
+    nameRequired: "Full Name is required.",
+    phoneRequired: "Phone Number is required.",
+    registrationSuccessful: "Registration Successful",
+    registrationFailed: "Registration Failed",
+    tryAgain: "Please try again.",
+  });
+
+  // Load selected language from AsyncStorage
+  useEffect(() => {
+    const loadLanguage = async () => {
+      const storedLang = await AsyncStorage.getItem("selectedLanguage");
+      if (storedLang) {
+        setTargetLang(storedLang);
+      }
+      setIsTranslating(true);
+    };
+    loadLanguage();
+  }, []);
+
+  // Translate all text based on the selected language
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true); // Start translation loading state
+      const keys = {
+        fullName: "Full Name",
+        email: "Email",
+        phoneNumber: "Phone Number",
+        password: "Password",
+        confirmPassword: "Confirm Password",
+        register: "Register",
+        alreadyHaveAccount: "Already have an account?",
+        loginHere: "Login here",
+        passwordMismatch: "Passwords do not match.",
+        emailRequired: "Email is required.",
+        passwordRequired: "Password is required.",
+        nameRequired: "Full Name is required.",
+        phoneRequired: "Phone Number is required.",
+        registrationSuccessful: "Registration Successful",
+        registrationFailed: "Registration Failed",
+        tryAgain: "Please try again.",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // 1-second delay
+      setIsTranslating(false); // End translation loading state
+    };
+
+    translateAll();
+  }, [targetLang]);
 
   const handleRegister = async () => {
     if (password !== confirm_pass) {
-      alert(t("password_mismatch")); // Translate alert message
+      alert(translations.passwordMismatch);
       return;
     }
-
     if (!email) {
-      alert(t("email_required")); // Translate alert message
+      alert(translations.emailRequired);
       return;
     }
     if (!password) {
-      alert(t("password_required")); // Translate alert message
+      alert(translations.passwordRequired);
       return;
     }
     if (!name) {
-      alert(t("name_required")); // Translate alert message
+      alert(translations.nameRequired);
       return;
     }
     if (!phone) {
-      alert(t("phone_required")); // Translate alert message
+      alert(translations.phoneRequired);
       return;
     }
 
@@ -61,14 +128,27 @@ const Register: React.FC = () => {
       setPhoneNumber("");
       setPassword("");
       setConfirmPass("");
-      alert(t("registration_successful")); // Translate alert message
+      alert(translations.registrationSuccessful);
     } catch (error) {
       console.error("Registration error:", error);
-      Alert.alert(t("registration_failed"), t("try_again")); // Translate alert messages
+      Alert.alert(translations.registrationFailed, translations.tryAgain);
     } finally {
       setLoading(false);
     }
   };
+
+  if (isTranslating) {
+    return (
+      <PaperProvider theme={customTheme}>
+        <View style={GlobalStyles.container}>
+          <ActivityIndicator
+            size="large"
+            color={GlobalStyles.activityIndicator.color}
+          />
+        </View>
+      </PaperProvider>
+    );
+  }
 
   return (
     <PaperProvider theme={customTheme}>
@@ -79,44 +159,44 @@ const Register: React.FC = () => {
               H.A.R.V.E.S.T
             </Text>
             <TextInput
-              label={t("full_name")} // Translate label
+              label={translations.fullName}
               value={name}
-              onChangeText={(name) => setName(name)}
+              onChangeText={setName}
               mode="outlined"
               style={GlobalStyles.input}
               autoCapitalize="none"
             />
             <TextInput
-              label={t("email")} // Translate label
+              label={translations.email}
               value={email}
-              onChangeText={(email) => setEmail(email)}
+              onChangeText={setEmail}
               mode="outlined"
               style={GlobalStyles.input}
               keyboardType="email-address"
               autoCapitalize="none"
             />
             <TextInput
-              label={t("phone_number")} // Translate label
+              label={translations.phoneNumber}
               value={phone}
-              onChangeText={(phone) => setPhoneNumber(phone)}
+              onChangeText={setPhoneNumber}
               mode="outlined"
               style={GlobalStyles.input}
               keyboardType="number-pad"
               autoCapitalize="none"
             />
             <TextInput
-              label={t("password")} // Translate label
+              label={translations.password}
               value={password}
-              onChangeText={(password) => setPassword(password)}
+              onChangeText={setPassword}
               mode="outlined"
               style={GlobalStyles.input}
               secureTextEntry
               autoCapitalize="none"
             />
             <TextInput
-              label={t("confirm_password")} // Translate label
+              label={translations.confirmPassword}
               value={confirm_pass}
-              onChangeText={(confirm_pass) => setConfirmPass(confirm_pass)}
+              onChangeText={setConfirmPass}
               mode="outlined"
               style={GlobalStyles.input}
               secureTextEntry
@@ -127,16 +207,16 @@ const Register: React.FC = () => {
               mode="contained"
               onPress={handleRegister}
               style={GlobalStyles.button}
-              loading={loading} // Show loading spinner when registering
-              disabled={loading} // Disable the button while loading
+              loading={loading}
+              disabled={loading}
             >
-              {t("register")} {/* Translate button text */}
+              {translations.register}
             </Button>
 
             <Text>
-              {t("already_have_an_account")}{" "} {/* Translate text */}
+              {translations.alreadyHaveAccount}{" "}
               <Link href="/" style={GlobalStyles.registerLink}>
-                {t("login_here")} {/* Translate link text */}
+                {translations.loginHere}
               </Link>
             </Text>
           </Card.Content>

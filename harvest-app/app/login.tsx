@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Alert } from "react-native";
+import { View, Alert, ActivityIndicator } from "react-native";
 import {
   Provider as PaperProvider,
   Text,
@@ -15,18 +15,75 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { registerBackgroundTask } from "../services/notification";
 import NetInfo from "@react-native-community/netinfo";
-import { useTranslation } from "react-i18next";
-import { changeLanguage, loadLanguage } from "../i18n";
+import translateText from "../hooks/translateText"; // Import translation function
 
-const Index: React.FC = () => {
-  const { t, i18n } = useTranslation(); // Use the translation hook
+const Login: React.FC = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [targetLang, setTargetLang] = useState<string>("");
+  const [isTranslating, setIsTranslating] = useState<boolean>(true); // New state for loading translation
+  const [translations, setTranslations] = useState({
+    email: "",
+    password: "",
+    login: "",
+    register: "",
+    noAccount: "",
+    notificationsRequired: "",
+    emailRequired: "",
+    passwordRequired: "",
+    loginSuccess: "",
+    invalidCredentials: "",
+    tryAgain: "",
+    offlineMode: "",
+    offlineLoginSuccess: "",
+    offlineNoCache: "",
+  });
+
   const router = useRouter();
 
-  // Check network connectivity
+  useEffect(() => { 
+    const initializeLanguage = async () => {
+      try {
+        const storedLang =
+          (await AsyncStorage.getItem("selectedLanguage")) || "en";
+        setTargetLang(storedLang);
+
+        const keys = {
+          email: "Email",
+          password: "Password",
+          login: "Login",
+          register: "Register here",
+          noAccount: "Don't have an account?",
+          notificationsRequired:
+            "You need to enable notifications to use this feature.",
+          emailRequired: "Email is required.",
+          passwordRequired: "Password is required.",
+          loginSuccess: "Login Successful",
+          invalidCredentials: "Invalid Credentials",
+          tryAgain: "Please try again.",
+          offlineMode: "Offline Mode",
+          offlineLoginSuccess: "You are logged in using cached credentials.",
+          offlineNoCache:
+            "No cached credentials found. Please go online to log in.",
+        };
+
+        const translated = {} as any;
+        for (const key in keys) {
+          translated[key] = await translateText(keys[key], storedLang);
+        }
+
+        setTranslations(translated);
+        setIsTranslating(false); // Mark translation as complete
+      } catch (error) {
+        console.error("Translation error:", error);
+      }
+    };
+
+    initializeLanguage();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOffline(!state.isConnected);
@@ -35,69 +92,25 @@ const Index: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Load language on component mount
-  useEffect(() => {
-    loadLanguage().then(() => {
-      console.log("Language loaded:", i18n.language);
-    });
-  }, []);
-
-  // Debugging: Log the current language
-  useEffect(() => {
-    console.log("Current language:", i18n.language);
-  }, [i18n.language]);
-
-  // Request notification permissions
   useEffect(() => {
     async function requestPermissions() {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== "granted") {
-        alert(t("notifications_permission_required")); // Translate alert message
+        alert(translations.notificationsRequired);
       }
     }
-    requestPermissions();
-  }, []);
-
-  // Setup notifications and background task
-  useEffect(() => {
-    async function setup() {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== "granted") {
-        console.log("[NOTIF] Permission not granted!");
-        return;
-      }
-      console.log("[NOTIF] Notifications permission granted!");
-      await registerBackgroundTask();
+    if (!isTranslating) {
+      requestPermissions();
     }
-
-    setup();
-  }, []);
-
-  // Check for stored credentials and auto-login
-  useEffect(() => {
-    const loadAuth = async () => {
-      try {
-        const storedToken = await AsyncStorage.getItem("authToken");
-        const storedLang = await AsyncStorage.getItem("selectedLanguage");
-
-        if (storedToken) {
-          // Auto-login if token exists
-          router.replace(storedLang ? "/(lands)" : "/(languages)");
-        }
-      } catch (error) {
-        console.error("Error loading auth:", error);
-      }
-    };
-    loadAuth();
-  }, []);
+  }, [isTranslating]);
 
   const handleLogin = async () => {
     if (!email) {
-      alert(t("email_required")); // Translate alert message
+      alert(translations.emailRequired);
       return;
     }
     if (!password) {
-      alert(t("password_required")); // Translate alert message
+      alert(translations.passwordRequired);
       return;
     }
 
@@ -105,40 +118,49 @@ const Index: React.FC = () => {
 
     try {
       if (isOffline) {
-        // Offline mode: Use stored credentials
         const storedToken = await AsyncStorage.getItem("authToken");
         if (storedToken) {
-          Alert.alert(t("offline_mode"), t("offline_login_success")); // Translate alert messages
+          Alert.alert(
+            translations.offlineMode,
+            translations.offlineLoginSuccess
+          );
           router.replace("/(condition)");
         } else {
-          Alert.alert(t("offline_mode"), t("offline_login_failed")); // Translate alert messages
+          Alert.alert(translations.offlineMode, translations.offlineNoCache);
         }
       } else {
-        // Online mode: Make API request
-        const response = await api.post("/login", {
-          email: email,
-          password: password,
-        });
+        const response = await api.post("/login", { email, password });
 
         const token = response.data.token;
         const user_id = response.data.user_id;
 
-        // Store credentials and token
         await AsyncStorage.setItem("authToken", token);
         await AsyncStorage.setItem("user_id", String(user_id));
 
         console.log("User ID:", user_id);
 
         router.replace("/(condition)");
-        Alert.alert(t("login_successful")); // Translate alert message
+        Alert.alert(translations.loginSuccess);
       }
     } catch (error) {
-      // console.error("Login error:", error);
-      Alert.alert(t("invalid_credentials"), t("try_again")); // Translate alert messages
+      Alert.alert(translations.invalidCredentials, translations.tryAgain);
     } finally {
       setLoading(false);
     }
   };
+
+  if (isTranslating) {
+    return (
+      <PaperProvider theme={customTheme}>
+        <View style={GlobalStyles.container}>
+          <ActivityIndicator
+            size="large"
+            color={GlobalStyles.activityIndicator.color}
+          />
+        </View>
+      </PaperProvider>
+    );
+  }
 
   return (
     <PaperProvider theme={customTheme}>
@@ -149,18 +171,18 @@ const Index: React.FC = () => {
               H.A.R.V.E.S.T
             </Text>
             <TextInput
-              label={t("email")} // Translate label
+              label={translations.email}
               value={email}
-              onChangeText={(email) => setEmail(email)}
+              onChangeText={setEmail}
               mode="outlined"
               style={GlobalStyles.input}
               keyboardType="email-address"
               autoCapitalize="none"
             />
             <TextInput
-              label={t("password")} // Translate label
+              label={translations.password}
               value={password}
-              onChangeText={(password) => setPassword(password)}
+              onChangeText={setPassword}
               mode="outlined"
               style={GlobalStyles.input}
               secureTextEntry
@@ -169,18 +191,18 @@ const Index: React.FC = () => {
             <Button
               icon="login"
               mode="contained"
-              onPress={() => handleLogin()}
+              onPress={handleLogin}
               style={GlobalStyles.button}
               loading={loading}
               disabled={loading}
             >
-              {t("login")} {/* Translate button text */}
+              {translations.login}
             </Button>
 
             <Text>
-              {t("dont_have_an_account")}{" "} {/* Translate text */}
+              {translations.noAccount}{" "}
               <Link href="/register" style={GlobalStyles.registerLink}>
-                {t("register_here")} {/* Translate link text */}
+                {translations.register}
               </Link>
             </Text>
           </Card.Content>
@@ -190,4 +212,4 @@ const Index: React.FC = () => {
   );
 };
 
-export default Index;
+export default Login;

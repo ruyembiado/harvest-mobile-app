@@ -7,8 +7,9 @@ import customTheme from "@/assets/styles/theme";
 import { useRiceLand } from "../../context/RiceLandContext";
 import api from "@/services/api";
 import { Link, useLocalSearchParams, useFocusEffect } from "expo-router";
-import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../../hooks/translateText";
 
 const NotesScreen: React.FC = () => {
   const { riceLandId, setRiceLandId } = useRiceLand();
@@ -16,26 +17,68 @@ const NotesScreen: React.FC = () => {
   const [notes, setNotes] = useState<Array<any>>([]);
   const { id } = useLocalSearchParams();
   const ID = riceLandId || id;
-  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en"); // Default language
+  const [translations, setTranslations] = useState({
+    loading: "Loading...",
+    addNotes: "Add Notes",
+    noNotesAvailable: "No notes available.",
+    noContentAvailable: "No content available.",
+    confirmDelete: "Confirm",
+    deleteMessage: "Are you sure you want to delete this note?",
+    cancel: "Cancel",
+    delete: "Delete",
+    success: "Success",
+    noteDeleted: "Note deleted successfully.",
+    error: "Error",
+    deleteFailed: "Failed to delete note.",
+  });
 
-  useEffect(() => {
-    const loadRiceLandId = async () => {
-      try {
-        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
-        if (savedRiceLandId) {
-          const id = parseInt(savedRiceLandId, 10); // Convert string to number
-          if (!isNaN(id)) {
-            setRiceLandId(id); // Update the state
-            console.log("Rice Land ID loaded from AsyncStorage:", id);
-          }
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
         }
-      } catch (error) {
-        // console.error("Failed to load riceLandId from AsyncStorage:", error);
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        loading: "Loading...",
+        addNotes: "Add Notes",
+        noNotesAvailable: "No notes available.",
+        noContentAvailable: "No content available.",
+        confirmDelete: "Confirm",
+        deleteMessage: "Are you sure you want to delete this note?",
+        cancel: "Cancel",
+        delete: "Delete",
+        success: "Success",
+        noteDeleted: "Note deleted successfully.",
+        error: "Error",
+        deleteFailed: "Failed to delete note.",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
       }
+
+      setTranslations(translated);
+      
+      setIsTranslating(false);
     };
 
-    loadRiceLandId();
-  }, []);
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
 
   // Check network connectivity
   useEffect(() => {
@@ -46,61 +89,70 @@ const NotesScreen: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Fetch notes and translate them
   const fetchNotes = async () => {
     setLoading(true);
-    if (!ID) {
-      // console.warn("No riceLandId or id found, but proceeding with fetch.");
-    }
     try {
       if (isOffline) {
-        // console.log("Device is offline, fetching cached notes data.");
-        const cachedNotesData = await AsyncStorage.getItem(
-          `cachedNotesData_${ID}`
-        );
+        const cachedNotesData = await AsyncStorage.getItem(`cachedNotesData_${ID}`);
         if (cachedNotesData) {
-          setNotes(JSON.parse(cachedNotesData));
+          setNotes(JSON.parse(cachedNotesData)); // Use cached data
         }
       } else {
-        // console.log("Fetching notes for rice land id:", ID);
         const response = await api.get(`/get_notes/${ID}/`);
-        console.log("API Response:", response.data);
-        setNotes(response.data);
-
-        // Store notes in AsyncStorage
-        await AsyncStorage.setItem(
-          `cachedNotesData_${ID}`,
-          JSON.stringify(response.data)
+        const translatedNotes = await Promise.all(
+          response.data.map(async (note) => {
+            const translatedTitle = await translateText(note.title, targetLang);
+            const contentArray = typeof note.content === "string"
+              ? JSON.parse(note.content)
+              : note.content || [];
+            const translatedContent = await Promise.all(
+              contentArray.map(async (item) => {
+                return await translateText(item, targetLang);
+              })
+            );
+            return {
+              ...note,
+              title: translatedTitle,
+              content: JSON.stringify(translatedContent),
+            };
+          })
         );
-
-        // Console log the stored data
-        const cachedData = await AsyncStorage.getItem(`cachedNotesData_${ID}`);
-        console.log("Cached Notes Data:", cachedData);
+        setNotes(translatedNotes); // Update state with translated notes
+        await AsyncStorage.setItem(`cachedNotesData_${ID}`, JSON.stringify(translatedNotes)); // Cache translated notes
       }
     } catch (error) {
-      // console.error("Error fetching notes:", error);
-      // Alert.alert("Error", "Failed to load notes.");
+      console.error("Error fetching notes:", error);
+      Alert.alert(translations.error, translations.deleteFailed);
     } finally {
       setLoading(false);
     }
   };
 
+  // Re-fetch notes when the screen comes into focus or when targetLang changes
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotes();
+    }, [id, riceLandId, isOffline, targetLang]) 
+  );
+
   const deleteNote = async (noteId: number) => {
-    Alert.alert("Confirm", "Are you sure you want to delete this note?", [
+    Alert.alert(translations.confirmDelete, translations.deleteMessage, [
       {
-        text: "Cancel",
+        text: translations.cancel,
         style: "cancel",
       },
       {
-        text: "Delete",
+        text: translations.delete,
         onPress: async () => {
           try {
             setLoading(true);
             await api.delete(`/delete_note/${noteId}/`);
-            Alert.alert("Success", "Note deleted successfully.");
+            Alert.alert(translations.success, translations.noteDeleted);
             fetchNotes(); // Refresh notes after deletion
           } catch (error) {
-            // console.error("Error deleting note:", error);
-            // Alert.alert("Error", "Failed to delete note.");
+            console.error("Error deleting note:", error);
+            Alert.alert(translations.error, translations.deleteFailed);
           } finally {
             setLoading(false);
           }
@@ -109,13 +161,7 @@ const NotesScreen: React.FC = () => {
     ]);
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchNotes();
-    }, [id, riceLandId, isOffline])
-  );
-
-  if (loading) {
+  if (loading || isTranslating) {
     return (
       <View style={GlobalStyles.loadingContainer}>
         <ActivityIndicator
@@ -129,24 +175,19 @@ const NotesScreen: React.FC = () => {
 
   return (
     <PaperProvider theme={customTheme}>
-      <View
-        style={[
-          GlobalStyles.container,
-          { alignItems: "center", paddingTop: 10 },
-        ]}
-      >
+      <View style={[GlobalStyles.container, { alignItems: "center", paddingTop: 10 }]}>
         <Button
           mode="contained"
           style={{
             marginTop: 5,
             marginBottom: 15,
-            width: 150,
+            width: "100%",
             alignSelf: "flex-end",
             backgroundColor: "#4CAF50",
           }}
         >
           <Link href={`/(notes)/add_note?id=${ID}`} style={{ color: "#fff" }}>
-            Add Notes
+            {translations.addNotes}
           </Link>
         </Button>
         <ScrollView
@@ -166,13 +207,7 @@ const NotesScreen: React.FC = () => {
               })();
 
               return (
-                <View
-                  key={note.id}
-                  style={[
-                    GlobalStyles.Weathercard,
-                    { width: 330, marginBottom: 0 },
-                  ]}
-                >
+                <View key={note.id} style={[GlobalStyles.Weathercard, { width: 330, marginBottom: 0 }]}>
                   <Text style={GlobalStyles.label}>{note.title}</Text>
                   {contentArray.map((item, index) => (
                     <Text key={index} style={GlobalStyles.dataText}>
@@ -181,25 +216,14 @@ const NotesScreen: React.FC = () => {
                   ))}
                   {contentArray.length === 0 && (
                     <Text style={GlobalStyles.dataText}>
-                      No content available.
+                      {translations.noContentAvailable}
                     </Text>
                   )}
 
-                  <View
-                    style={{
-                      position: "absolute",
-                      top: 10,
-                      right: 10,
-                      flexDirection: "row",
-                    }}
-                  >
-                    <TouchableOpacity
-                      onPress={() => deleteNote(note.id)}
-                      style={{ marginRight: 10 }}
-                    >
+                  <View style={{ position: "absolute", top: 10, right: 10, flexDirection: "row" }}>
+                    <TouchableOpacity onPress={() => deleteNote(note.id)} style={{ marginRight: 10 }}>
                       <FontAwesome name="trash" size={20} color="#D32F2F" />
                     </TouchableOpacity>
-
                     <Link href={`/(notes)/update_note?id=${note.id}`}>
                       <FontAwesome name="pencil" size={20} color="#4CAF50" />
                     </Link>
@@ -209,7 +233,9 @@ const NotesScreen: React.FC = () => {
             })
           ) : (
             <View style={GlobalStyles.noDataTextContainer}>
-              <Text style={GlobalStyles.dataText}>No notes available.</Text>
+              <Text style={GlobalStyles.dataText}>
+                {translations.noNotesAvailable}
+              </Text>
             </View>
           )}
         </ScrollView>

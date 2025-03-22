@@ -1,20 +1,16 @@
-import { View, ScrollView, Modal, TouchableOpacity } from "react-native";
-import React, { useState, useEffect } from "react";
+import { View, ScrollView, Modal, TouchableOpacity, Alert } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "@/services/api";
 import { useRiceLand } from "../../context/RiceLandContext";
 import { Calendar } from "react-native-calendars";
-import {
-  Text,
-  ActivityIndicator,
-  PaperProvider,
-  Button,
-  TextInput,
-} from "react-native-paper";
+import { Text, ActivityIndicator, PaperProvider, Button, TextInput } from "react-native-paper";
 import FontAwesome from "react-native-vector-icons/FontAwesome";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
-import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../../hooks/translateText";
+import { useFocusEffect } from "expo-router";
 
 const CalendarScreen: React.FC = () => {
   const { riceLandId, setRiceLandId } = useRiceLand();
@@ -24,10 +20,130 @@ const CalendarScreen: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [tasks, setTasks] = useState<{ [key: string]: string[] }>({});
-  const [taskInputs, setTaskInputs] = useState<string[]>([""]); // Array to hold multiple task inputs
+  const [taskInputs, setTaskInputs] = useState<string[]>([""]);
   const [isTaskModalVisible, setTaskModalVisible] = useState<boolean>(false);
-  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false); // Track update mode
-  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
+  const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
+  const [isOffline, setIsOffline] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    loading: "Loading...",
+    growthStages: "Growth Stages",
+    advisories: "Advisories",
+    tasks: "Tasks",
+    noAdvisories: "No advisories for this date.",
+    selectDateAdvisories: "Select a date to view advisories.",
+    noTasks: "No tasks for this date.",
+    selectDateTasks: "Select a date to view tasks.",
+    addTask: "Add Another Task",
+    updateTasks: "Update Tasks",
+    saveTasks: "Save Tasks",
+    addTaskTitle: "Add Tasks for",
+    updateTaskTitle: "Update Tasks for",
+    close: "Close",
+    taskPlaceholder: "Task",
+    taskAdded: "Tasks added successfully.",
+    taskUpdated: "Tasks updated successfully.",
+    taskError: "Please add at least one task.",
+  });
+
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
+        }
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        loading: "Loading...",
+        growthStages: "Growth Stages",
+        advisories: "Advisories",
+        tasks: "Tasks",
+        noAdvisories: "No advisories for this date.",
+        selectDateAdvisories: "Select a date to view advisories.",
+        noTasks: "No tasks for this date.",
+        selectDateTasks: "Select a date to view tasks.",
+        addTask: "Add Another Task",
+        updateTasks: "Update Tasks",
+        saveTasks: "Save Tasks",
+        addTaskTitle: "Add Tasks for",
+        updateTaskTitle: "Update Tasks for",
+        close: "Close",
+        taskPlaceholder: "Task",
+        taskAdded: "Tasks added successfully.",
+        taskUpdated: "Tasks updated successfully.",
+        taskError: "Please add at least one task.",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+      setIsTranslating(false);
+    };
+
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
+
+  // Translate growth stages
+  const translateGrowthStages = async (stages: any[]) => {
+    const translatedStages = await Promise.all(
+      stages.map(async (stage) => {
+        const translatedStage = await translateText(
+          stage.rice_growth_stage,
+          targetLang
+        );
+        return {
+          ...stage,
+          rice_growth_stage: translatedStage, // Translated name for display
+          original_stage: stage.rice_growth_stage, // Original name for color mapping
+        };
+      })
+    );
+    setGrowthStages(translatedStages);
+  };
+
+  // Translate advisories
+  const translateAdvisories = async (advisories: any[]) => {
+    const translatedAdvisories = await Promise.all(
+      advisories.map(async (advisory) => {
+        const advisoryMessages = JSON.parse(advisory.advisories);
+        const translatedMessages = await Promise.all(
+          advisoryMessages.map(async (message: string) => {
+            return await translateText(message, targetLang);
+          })
+        );
+        return { ...advisory, advisories: JSON.stringify(translatedMessages) };
+      })
+    );
+    setAdvisories(translatedAdvisories);
+  };
+
+  // Translate tasks
+  const translateTasks = async (tasks: { [key: string]: string[] }) => {
+    const translatedTasks = {} as { [key: string]: string[] };
+    for (const date in tasks) {
+      const translatedTaskList = await Promise.all(
+        tasks[date].map(async (task) => {
+          return await translateText(task, targetLang);
+        })
+      );
+      translatedTasks[date] = translatedTaskList;
+    }
+    setTasks(translatedTasks);
+  };
 
   // Check network connectivity
   useEffect(() => {
@@ -45,32 +161,12 @@ const CalendarScreen: React.FC = () => {
       fetchAdvisories();
       fetchTasks();
     }
-  }, [riceLandId, isOffline]);
-
-  useEffect(() => {
-    const loadRiceLandId = async () => {
-      try {
-        const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
-        if (savedRiceLandId) {
-          const id = parseInt(savedRiceLandId, 10); // Convert string to number
-          if (!isNaN(id)) {
-            setRiceLandId(id); // Update the state
-            console.log("Rice Land ID loaded from AsyncStorage:", id);
-          }
-        }
-      } catch (error) {
-        // console.error("Failed to load riceLandId from AsyncStorage:", error);
-      }
-    };
-
-    loadRiceLandId();
-  }, []);
+  }, [riceLandId, isOffline, targetLang]); // Re-fetch when targetLang changes
 
   // Fetch Growth Stages
   const fetchGrowthStages = async () => {
     try {
       if (isOffline) {
-
         const cachedGrowthStages = await AsyncStorage.getItem(
           `cachedGrowthStages_${riceLandId}`
         );
@@ -79,7 +175,7 @@ const CalendarScreen: React.FC = () => {
         );
         if (cachedGrowthStages) {
           const dataStages = JSON.parse(cachedGrowthStages);
-          setGrowthStages(dataStages);
+          await translateGrowthStages(dataStages);
         }
         if (cachedStagesToCalendar) {
           const dataMarkedDates = JSON.parse(cachedStagesToCalendar);
@@ -90,7 +186,7 @@ const CalendarScreen: React.FC = () => {
         const response = await api.get(`/get_rice_growth_stages/${riceLandId}`);
 
         if (response.data.status === "success") {
-          setGrowthStages(response.data.data);
+          await translateGrowthStages(response.data.data);
           mapStagesToCalendar(response.data.data);
 
           // Cache growth stages data
@@ -104,24 +200,12 @@ const CalendarScreen: React.FC = () => {
             `cachedStagesToCalendar_${riceLandId}`,
             JSON.stringify(response.data.data)
           );
-
-          // Console cachedGrowthStages
-          const cachedGrowthStages = await AsyncStorage.getItem(
-            `cachedGrowthStages_${riceLandId}`
-          );
-          console.log("cachedGrowthStages", cachedGrowthStages);
-
-          // Console cachedStagesToCalendar
-          const cachedStagesToCalendar = await AsyncStorage.getItem(
-            `cachedStagesToCalendar_${riceLandId}`
-          );
-          console.log("cachedStagesToCalendar", cachedStagesToCalendar);
         } else {
           console.error("Error fetching growth stages:", response.data.message);
         }
       }
     } catch (error) {
-      // console.error("Network error:", error);
+      console.error("Network error:", error);
     } finally {
       setLoading(false);
     }
@@ -131,20 +215,17 @@ const CalendarScreen: React.FC = () => {
   const fetchAdvisories = async () => {
     try {
       if (isOffline) {
-        // Offline mode: Retrieve cached data
         const cachedAdvisories = await AsyncStorage.getItem(
           `cachedAdvisories_${riceLandId}`
         );
-
         if (cachedAdvisories) {
-          setAdvisories(JSON.parse(cachedAdvisories));
+          const data = JSON.parse(cachedAdvisories);
+          await translateAdvisories(data);
         }
       } else {
         const response = await api.get(`/get_all_advisories/${riceLandId}`);
         if (response) {
-          setAdvisories(response.data);
-
-          // Cache advisories data
+          await translateAdvisories(response.data);
           await AsyncStorage.setItem(
             `cachedAdvisories_${riceLandId}`,
             JSON.stringify(response.data)
@@ -154,7 +235,7 @@ const CalendarScreen: React.FC = () => {
         }
       }
     } catch (error) {
-      // console.error("Network error:", error);
+      console.error("Network error:", error);
     }
   };
 
@@ -164,14 +245,12 @@ const CalendarScreen: React.FC = () => {
 
     try {
       if (isOffline) {
-        // Offline mode: Retrieve cached data
         const cachedTasks = await AsyncStorage.getItem(
           `cachedTasks_${riceLandId}`
         );
-
         if (cachedTasks) {
           const data = JSON.parse(cachedTasks);
-          setTasks(data);
+          await translateTasks(data);
         }
       } else {
         const response = await api.get(`/get_task`, {
@@ -182,18 +261,15 @@ const CalendarScreen: React.FC = () => {
         });
 
         if (response.data) {
-          setTasks((prevTasks) => ({
-            ...prevTasks,
+          const tasksData = {
+            ...tasks,
             [selectedDate]: response.data.map((task: any) => task.task),
-          }));
+          };
+          await translateTasks(tasksData);
 
-          // Cache tasks data
           await AsyncStorage.setItem(
             `cachedTasks_${riceLandId}`,
-            JSON.stringify({
-              ...tasks,
-              [selectedDate]: response.data.map((task: any) => task.task),
-            })
+            JSON.stringify(tasksData)
           );
         }
       }
@@ -213,13 +289,11 @@ const CalendarScreen: React.FC = () => {
 
       while (startDate <= endDate) {
         const formattedDate = startDate.toISOString().split("T")[0];
-
         marked[formattedDate] = {
           selected: true,
           marked: true,
           selectedColor: stageColor,
         };
-
         startDate.setDate(startDate.getDate() + 1);
       }
     });
@@ -229,29 +303,28 @@ const CalendarScreen: React.FC = () => {
   // Get color based on rice growth stage
   const getStageColor = (stage: string) => {
     const stageColors: { [key: string]: string } = {
-      "Germination": "#4CAF50", // Green
-      "Seeding Establishment": "#FFC107", // Yellow
-      "Tillering": "#03A9F4", // Blue
-      "Panicle Initiation": "#9C27B0", // Purple
-      "Booting": "#FF9800", // Orange
-      "Heading": "#F44336", // Red
-      "Flowering": "#E91E63", // Pink
-      "Grain Filling": "#795548", // Brown
-      "Maturity": "#607D8B", // Gray
+      Germination: "#4CAF50",
+      "Seeding Establishment": "#FFC107",
+      Tillering: "#03A9F4",
+      "Panicle Initiation": "#9C27B0",
+      Booting: "#FF9800",
+      Heading: "#F44336",
+      Flowering: "#E91E63",
+      "Grain Filling": "#795548",
+      Maturity: "#607D8B",
     };
-
     return stageColors[stage] || "#000000"; // Default: Black
   };
 
   // Handle day press
   const handleDayPress = (day: any) => {
     setSelectedDate(day.dateString);
-    fetchTasks(); // Fetch tasks for the selected date
+    fetchTasks();
   };
 
   // Add task input field
   const addTaskInput = () => {
-    setTaskInputs([...taskInputs, ""]); // Add a new empty input field
+    setTaskInputs([...taskInputs, ""]);
   };
 
   // Handle task input change
@@ -271,27 +344,21 @@ const CalendarScreen: React.FC = () => {
   const saveTasks = async () => {
     if (selectedDate) {
       if (taskInputs.every((task) => task.trim() === "")) {
-        alert("Please add at least one task.");
+        Alert.alert(translations.taskError);
         return;
       }
 
       try {
-        // Send tasks to the backend
         await api.post("/add_tasks", {
-          tasks: taskInputs.filter((task) => task.trim()), // Send only non-empty tasks
+          tasks: taskInputs.filter((task) => task.trim()),
           date: selectedDate,
           rice_land_id: riceLandId,
         });
 
-        // Refetch tasks after saving
         await fetchTasks();
-
-        // Reset task inputs and close modal
         setTaskInputs([""]);
         setTaskModalVisible(false);
-
-        // Show success message
-        alert("Tasks added successfully.");
+        Alert.alert(translations.taskAdded);
       } catch (error) {
         console.error("Error saving tasks:", error);
       }
@@ -302,28 +369,22 @@ const CalendarScreen: React.FC = () => {
   const updateTasks = async () => {
     if (selectedDate) {
       if (taskInputs.every((task) => task.trim() === "")) {
-        alert("Please add at least one task.");
+        Alert.alert(translations.taskError);
         return;
       }
 
       try {
-        // Send updated tasks to the backend
         await api.post("/update_tasks", {
-          tasks: taskInputs.filter((task) => task.trim()), // Send only non-empty tasks
+          tasks: taskInputs.filter((task) => task.trim()),
           date: selectedDate,
           rice_land_id: riceLandId,
         });
 
-        // Refetch tasks after updating
         await fetchTasks();
-
-        // Reset task inputs and close modal
         setTaskInputs([""]);
         setTaskModalVisible(false);
-        setIsUpdateMode(false); // Exit update mode
-
-        // Show success message
-        alert("Tasks updated successfully.");
+        setIsUpdateMode(false);
+        Alert.alert(translations.taskUpdated);
       } catch (error) {
         console.error("Error updating tasks:", error);
       }
@@ -331,7 +392,7 @@ const CalendarScreen: React.FC = () => {
   };
 
   // Display Loading Indicator
-  if (loading) {
+  if (loading || isTranslating) {
     return (
       <View style={GlobalStyles.loadingContainer}>
         <ActivityIndicator animating={true} size="large" color="#4CAF50" />
@@ -399,18 +460,18 @@ const CalendarScreen: React.FC = () => {
             ]}
           >
             <Text style={[GlobalStyles.label, { marginTop: 5 }]}>
-              Growth Stages
+              {translations.growthStages}
             </Text>
             {growthStages.map((stage) => (
               <View key={stage.id} style={GlobalStyles.stageContainer}>
                 <View
                   style={[
                     GlobalStyles.circle,
-                    { backgroundColor: getStageColor(stage.rice_growth_stage) },
+                    { backgroundColor: getStageColor(stage.original_stage) },
                   ]}
                 />
                 <Text style={GlobalStyles.dataText}>
-                  {stage.rice_growth_stage}
+                  {stage.rice_growth_stage}{" "}
                 </Text>
               </View>
             ))}
@@ -429,7 +490,7 @@ const CalendarScreen: React.FC = () => {
             ]}
           >
             <Text style={[GlobalStyles.label, { marginTop: 5 }]}>
-              Advisories
+              {translations.advisories}
             </Text>
             {selectedDate ? (
               advisories.some((advisory) => advisory.date === selectedDate) ? (
@@ -451,12 +512,12 @@ const CalendarScreen: React.FC = () => {
                   })
               ) : (
                 <Text style={GlobalStyles.dataText}>
-                  No advisories for this date.
+                  {translations.noAdvisories}
                 </Text>
               )
             ) : (
               <Text style={GlobalStyles.dataText}>
-                Select a date to view advisories.
+                {translations.selectDateAdvisories}
               </Text>
             )}
           </View>
@@ -474,7 +535,9 @@ const CalendarScreen: React.FC = () => {
             ]}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text style={[GlobalStyles.label, { marginTop: 5 }]}>Tasks</Text>
+              <Text style={[GlobalStyles.label, { marginTop: 5 }]}>
+                {translations.tasks}
+              </Text>
               {selectedDate ? (
                 <View
                   style={{
@@ -484,36 +547,30 @@ const CalendarScreen: React.FC = () => {
                     flexDirection: "row",
                   }}
                 >
-                  {
-                    // Show "Add" button if there are no tasks for the selected date
-                    (!tasks[selectedDate] ||
-                      tasks[selectedDate].length === 0) && (
-                      <TouchableOpacity
-                        onPress={() => {
-                          setTaskModalVisible(true);
-                          setIsUpdateMode(false); // Switch to add mode
-                          setTaskInputs([""]); // Reset task inputs to a single empty task
-                        }}
-                      >
-                        <FontAwesome name="plus" size={20} color="#4CAF50" />
-                      </TouchableOpacity>
-                    )
-                  }
-                  {
-                    // Show "Edit" button if there are tasks for the selected date
-                    tasks[selectedDate]?.length > 0 && (
-                      <TouchableOpacity
-                        style={{ marginLeft: 10 }}
-                        onPress={() => {
-                          setTaskModalVisible(true);
-                          setIsUpdateMode(true); // Switch to update mode
-                          setTaskInputs(tasks[selectedDate]); // Pre-fill tasks for the selected date
-                        }}
-                      >
-                        <FontAwesome name="edit" size={20} color="#4CAF50" />
-                      </TouchableOpacity>
-                    )
-                  }
+                  {(!tasks[selectedDate] ||
+                    tasks[selectedDate].length === 0) && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setTaskModalVisible(true);
+                        setIsUpdateMode(false);
+                        setTaskInputs([""]);
+                      }}
+                    >
+                      <FontAwesome name="plus" size={20} color="#4CAF50" />
+                    </TouchableOpacity>
+                  )}
+                  {tasks[selectedDate]?.length > 0 && (
+                    <TouchableOpacity
+                      style={{ marginLeft: 10 }}
+                      onPress={() => {
+                        setTaskModalVisible(true);
+                        setIsUpdateMode(true);
+                        setTaskInputs(tasks[selectedDate]);
+                      }}
+                    >
+                      <FontAwesome name="edit" size={20} color="#4CAF50" />
+                    </TouchableOpacity>
+                  )}
                 </View>
               ) : null}
             </View>
@@ -526,12 +583,12 @@ const CalendarScreen: React.FC = () => {
                 ))
               ) : (
                 <Text style={GlobalStyles.dataText}>
-                  No tasks for this date.
+                  {translations.noTasks}
                 </Text>
               )
             ) : (
               <Text style={GlobalStyles.dataText}>
-                Select a date to view tasks.
+                {translations.selectDateTasks}
               </Text>
             )}
           </View>
@@ -544,19 +601,17 @@ const CalendarScreen: React.FC = () => {
           transparent={true}
           onRequestClose={() => {
             setTaskModalVisible(false);
-            setIsUpdateMode(false); // Reset update mode when modal is closed
+            setIsUpdateMode(false);
           }}
         >
-          {/* Centered Modal Container */}
           <View
             style={{
               flex: 1,
               justifyContent: "center",
               alignItems: "center",
-              backgroundColor: "rgba(0, 0, 0, 0.5)", // Semi-transparent background
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
             }}
           >
-            {/* Modal Content with ScrollView */}
             <View
               style={[
                 GlobalStyles.Weathercard,
@@ -565,8 +620,9 @@ const CalendarScreen: React.FC = () => {
             >
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={GlobalStyles.label}>
-                  {isUpdateMode ? "Update Tasks for" : "Add Tasks for"}{" "}
-                  {selectedDate}
+                  {isUpdateMode
+                    ? `${translations.updateTaskTitle} ${selectedDate}`
+                    : `${translations.addTaskTitle} ${selectedDate}`}
                 </Text>
                 <View
                   style={{
@@ -580,7 +636,7 @@ const CalendarScreen: React.FC = () => {
                     style={{ marginBottom: 15 }}
                     onPress={() => {
                       setTaskModalVisible(false);
-                      setIsUpdateMode(false); // Reset update mode
+                      setIsUpdateMode(false);
                     }}
                   >
                     <FontAwesome name="close" size={20} color="#D32F2F" />
@@ -594,7 +650,7 @@ const CalendarScreen: React.FC = () => {
                     <TextInput
                       style={[GlobalStyles.input, { flex: 1 }]}
                       mode="outlined"
-                      label={`Task ${index + 1}`}
+                      label={`${translations.taskPlaceholder} ${index + 1}`}
                       value={input}
                       onChangeText={(text) =>
                         handleTaskInputChange(text, index)
@@ -616,7 +672,7 @@ const CalendarScreen: React.FC = () => {
                   style={GlobalStyles.button}
                   onPress={addTaskInput}
                 >
-                  Add Another Task
+                  {translations.addTask}
                 </Button>
                 {isUpdateMode ? (
                   <Button
@@ -625,7 +681,7 @@ const CalendarScreen: React.FC = () => {
                     style={GlobalStyles.button}
                     onPress={updateTasks}
                   >
-                    Update Tasks
+                    {translations.updateTasks}
                   </Button>
                 ) : (
                   <Button
@@ -634,7 +690,7 @@ const CalendarScreen: React.FC = () => {
                     style={GlobalStyles.button}
                     onPress={saveTasks}
                   >
-                    Save Tasks
+                    {translations.saveTasks}
                   </Button>
                 )}
               </ScrollView>

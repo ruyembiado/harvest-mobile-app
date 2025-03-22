@@ -15,46 +15,89 @@ import customTheme from "../../assets/styles/theme";
 import api from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
-import { useTranslation } from "react-i18next";
-import { changeLanguage, loadLanguage } from "../../i18n";
+import translateText from "../../hooks/translateText"; // Import translation hook
 
 const AddLand: React.FC = () => {
-  const { t, i18n } = useTranslation(); // Use the translation hook
-  const [rice_land_name, setRiceLandName] = React.useState<string>("");
-  const [rice_land_lat, setRiceLandLat] = React.useState<string>("");
-  const [rice_land_long, setRiceLandLong] = React.useState<string>("");
-  const [rice_land_size, setRiceLandSize] = React.useState<string>("");
-  const [rice_land_size_sqm, setRiceLandSizeSQM] = React.useState<string>("");
-  const [rice_land_condition, setRiceLandCondition] =
-    React.useState<string>("");
+  const [rice_land_name, setRiceLandName] = useState<string>("");
+  const [rice_land_lat, setRiceLandLat] = useState<string>("");
+  const [rice_land_long, setRiceLandLong] = useState<string>("");
+  const [rice_land_size, setRiceLandSize] = useState<string>("");
+  const [rice_land_size_sqm, setRiceLandSizeSQM] = useState<string>("");
+  const [rice_land_condition, setRiceLandCondition] = useState<string>("");
   const [rice_land_current_stage, setRiceLandStage] =
-    React.useState<string>("Not Yet Started");
-  const [loading, setLoading] = React.useState<boolean>(false);
-  const [locationLoading, setLocationLoading] = React.useState<boolean>(false);
+    useState<string>("Not Yet Started");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [locationLoading, setLocationLoading] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    addRiceLand: "Add Rice Land",
+    riceLandName: "Rice Land Name",
+    location: "Location",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    fetchLocation: "Get Current Location",
+    fetchingLocation: "Fetching Location...",
+    landSizeHectares: "Size of the Land in hectares (optional)",
+    landSizeSQM: "Size of the Land in square meter(sqm) (optional)",
+    currentStage: "Current Stage of Rice Growth",
+    landCondition: "Select Land Condition",
+    addLandButton: "Add Land",
+    requiredField: "This field is required.",
+    locationRequired: "Location coordinates are required.",
+    landSizeRequired: "Size of the land is required.",
+    landConditionRequired: "Land condition is required.",
+    successMessage: "Rice land added successfully.",
+    errorMessage: "Add failed. Please try again.",
+  });
+
   const router = useRouter();
 
-  const riceLandConditions = [
-    { label: "-- Select Condition --", value: "" },
-    { label: "Irrigated Lowland Rice", value: "Irrigated Lowland Rice" },
-    { label: "Rainfed Lowland Rice", value: "Rainfed Lowland Rice" },
-    { label: "Upland Rice", value: "Upland Rice" },
-  ];
+  // Load the language from AsyncStorage
+  useEffect(() => {
+    const loadLanguage = async () => {
+      const storedLang = await AsyncStorage.getItem("selectedLanguage") || "en";
+      setTargetLang(storedLang);
+    };
+    loadLanguage();
+  }, []);
 
-  const riceLandStages = [
-    { label: "Not Yet Started", value: "Not Yet Started" },
-  ];
+  // Translate all text based on the selected language
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        addRiceLand: "Add Rice Land",
+        riceLandName: "Rice Land Name",
+        location: "Location",
+        latitude: "Latitude",
+        longitude: "Longitude",
+        fetchLocation: "Get Current Location",
+        fetchingLocation: "Fetching Location...",
+        landSizeHectares: "Size of the Land in hectares (optional)",
+        landSizeSQM: "Size of the Land in square meter(sqm) (optional)",
+        currentStage: "Current Stage of Rice Growth",
+        landCondition: "Select Land Condition",
+        addLandButton: "Add Land",
+        requiredField: "This field is required.",
+        locationRequired: "Location coordinates are required.",
+        landSizeRequired: "Size of the land is required.",
+        landConditionRequired: "Land condition is required.",
+        successMessage: "Rice land added successfully.",
+        errorMessage: "Add failed. Please try again.",
+      };
 
-  // Load language on component mount
-    useEffect(() => {
-      loadLanguage().then(() => {
-        console.log("Language loaded:", i18n.language);
-      });
-    }, []);
-  
-    // Debugging: Log the current language
-    useEffect(() => {
-      console.log('Current language:', i18n.language);
-    }, [i18n.language]);
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+      setIsTranslating(false);
+    };
+
+    translateAll();
+  }, [targetLang]);
 
   // Fetch current location
   const fetchLocation = async () => {
@@ -74,19 +117,19 @@ const AddLand: React.FC = () => {
 
   const handleAddRiceLand = async () => {
     if (!rice_land_name) {
-      alert("Rice land name is required.");
+      alert(translations.requiredField);
       return;
     }
     if (!rice_land_lat || !rice_land_long) {
-      alert("Location coordinates are required.");
+      alert(translations.locationRequired);
       return;
     }
     if (!rice_land_size && rice_land_size_sqm) {
-      alert("Size of the land is required.");
+      alert(translations.landSizeRequired);
       return;
     }
     if (!rice_land_condition) {
-      alert("Land condition is required.");
+      alert(translations.landConditionRequired);
       return;
     }
 
@@ -110,20 +153,39 @@ const AddLand: React.FC = () => {
       });
 
       router.replace("/(lands)");
-      Alert.alert("Rice land added Successfully.");
+      Alert.alert(translations.successMessage);
     } catch (error) {
       console.error("Add error:", error);
-      Alert.alert("Add failed.Please try again.");
+      Alert.alert(translations.errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  const riceLandConditions = [
+    { label: "-- Select Condition --", value: "" },
+    { label: "Irrigated Lowland Rice", value: "Irrigated Lowland Rice" },
+    { label: "Rainfed Lowland Rice", value: "Rainfed Lowland Rice" },
+    { label: "Upland Rice", value: "Upland Rice" },
+  ];
+
+  const riceLandStages = [
+    { label: "Not Yet Started", value: "Not Yet Started" },
+  ];
+
+  if (isTranslating) {
+    return (
+      <View style={GlobalStyles.loadingContainer}>
+        <ActivityIndicator size="large" color={GlobalStyles.activityIndicator.color} />
+      </View>
+    );
+  }
+
   return (
     <PaperProvider theme={customTheme}>
       <View style={[GlobalStyles.TitleContainer]}>
         <Text variant="headlineLarge" style={[GlobalStyles.title]}>
-          Add Rice Land
+          {translations.addRiceLand}
         </Text>
       </View>
       <ScrollView
@@ -134,9 +196,9 @@ const AddLand: React.FC = () => {
       >
         <View style={[GlobalStyles.FormContainer]}>
           <View>
-            <Text>Rice Land Name:</Text>
+            <Text>{translations.riceLandName}:</Text>
             <TextInput
-              label="Enter rice land name"
+              label={translations.riceLandName}
               value={rice_land_name}
               onChangeText={setRiceLandName}
               mode="outlined"
@@ -145,9 +207,9 @@ const AddLand: React.FC = () => {
           </View>
 
           <View>
-            <Text>Location:</Text>
+            <Text>{translations.location}:</Text>
             <TextInput
-              label="Enter location (Latitude)"
+              label={translations.latitude}
               value={rice_land_lat}
               onChangeText={setRiceLandLat}
               mode="outlined"
@@ -156,7 +218,7 @@ const AddLand: React.FC = () => {
             />
 
             <TextInput
-              label="Enter location (Longitude)"
+              label={translations.longitude}
               value={rice_land_long}
               onChangeText={setRiceLandLong}
               mode="outlined"
@@ -173,15 +235,15 @@ const AddLand: React.FC = () => {
               icon={locationLoading ? undefined : "crosshairs-gps"}
             >
               {locationLoading
-                ? "Fetching Location..."
-                : "Get Current Location"}
+                ? translations.fetchingLocation
+                : translations.fetchLocation}
             </Button>
           </View>
 
           <View>
-            <Text>Size of the Land in hectares (optional):</Text>
+            <Text>{translations.landSizeHectares}:</Text>
             <TextInput
-              label="Enter size of the land (hectares)"
+              label={translations.landSizeHectares}
               value={rice_land_size}
               onChangeText={setRiceLandSize}
               mode="outlined"
@@ -189,10 +251,11 @@ const AddLand: React.FC = () => {
               keyboardType="numeric"
             />
           </View>
+
           <View>
-            <Text>Size of the Land in square meter(sqm) (optional):</Text>
+            <Text>{translations.landSizeSQM}:</Text>
             <TextInput
-              label="Enter size of the land (sqm)"
+              label={translations.landSizeSQM}
               value={rice_land_size_sqm}
               onChangeText={setRiceLandSizeSQM}
               mode="outlined"
@@ -202,9 +265,9 @@ const AddLand: React.FC = () => {
           </View>
 
           <View>
-            <Text>Current Stage of Rice Growth:</Text>
+            <Text>{translations.currentStage}:</Text>
             <TextInput
-              label="Current Stage"
+              label={translations.currentStage}
               value={
                 riceLandStages.find(
                   (stage) => stage.value === rice_land_current_stage
@@ -217,7 +280,7 @@ const AddLand: React.FC = () => {
           </View>
 
           <View>
-            <Text>Select Land Condition:</Text>
+            <Text>{translations.landCondition}:</Text>
             <Picker
               selectedValue={rice_land_condition}
               onValueChange={(itemValue) => setRiceLandCondition(itemValue)}
@@ -241,7 +304,7 @@ const AddLand: React.FC = () => {
             disabled={loading}
             onPress={handleAddRiceLand}
           >
-            Add Land
+            {translations.addLandButton}
           </Button>
         </View>
       </ScrollView>

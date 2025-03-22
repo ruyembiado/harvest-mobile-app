@@ -15,7 +15,7 @@ const getUserIdOrLogout = async (router: any): Promise<string | null> => {
             await api.post("/logout"); 
             await AsyncStorage.removeItem("user_id");
             await AsyncStorage.removeItem("authToken");
-            router.replace("/"); 
+            router.replace("../../login");
           },
         },
       ]);

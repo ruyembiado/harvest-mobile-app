@@ -12,22 +12,39 @@ import { useFocusEffect, useRouter } from "expo-router";
 import api from "@/services/api";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
+import translateText from "../../hooks/translateText"; // Import translation hook
 
 const SettingScreen: React.FC = () => {
-  const [email, setEmail] = React.useState<string>("");
-  const [password, setPassword] = React.useState<string>("");
-  const [name, setName] = React.useState<string>("");
-  const [phone, setPhoneNumber] = React.useState<string>("");
-  const [confirm_pass, setConfirmPass] = React.useState<string>("");
-  const [loading, setLoading] = React.useState<boolean>(false);
+  const [email, setEmail] = useState<string>("");
+  const [password, setPassword] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [phone, setPhoneNumber] = useState<string>("");
+  const [confirm_pass, setConfirmPass] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
   const [language, setLanguage] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    profile: "Profile",
+    fullName: "Full Name",
+    email: "Email",
+    phoneNumber: "Phone Number",
+    password: "Password",
+    confirmPassword: "Confirm Password",
+    update: "Update",
+    language: "Language",
+    english: "English",
+    tagalog: "Tagalog",
+    hiligaynon: "Hiligaynon",
+    logout: "Logout",
+    error: "Error",
+    confirmPasswordError: "Please confirm your password",
+    passwordMismatch: "Passwords do not match",
+    success: "Success",
+    profileUpdated: "Profile updated successfully",
+    updateFailed: "Failed to update profile. Please try again.",
+    loggedOut: "Logged out",
+    logoutMessage: "You have been logged out",
+  });
   const router = useRouter();
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchUserProfile();
-    }, [])
-  );
 
   // Load stored language on mount
   useEffect(() => {
@@ -40,11 +57,47 @@ const SettingScreen: React.FC = () => {
     loadLanguage();
   }, []);
 
+  // Translate all text based on the selected language
+  useEffect(() => {
+    const translateAll = async () => {
+      const keys = {
+        profile: "Profile",
+        fullName: "Full Name",
+        email: "Email",
+        phoneNumber: "Phone Number",
+        password: "Password",
+        confirmPassword: "Confirm Password",
+        update: "Update",
+        language: "Language",
+        english: "English",
+        tagalog: "Tagalog",
+        hiligaynon: "Hiligaynon",
+        logout: "Logout",
+        error: "Error",
+        confirmPasswordError: "Please confirm your password",
+        passwordMismatch: "Passwords do not match",
+        success: "Success",
+        profileUpdated: "Profile updated successfully",
+        updateFailed: "Failed to update profile. Please try again.",
+        loggedOut: "Logged out",
+        logoutMessage: "You have been logged out",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], language);
+      }
+
+      setTranslations(translated);
+    };
+
+    translateAll();
+  }, [language]); // Re-translate when language changes
+
   // Save selected language
   const handleLanguageChange = async (value: string) => {
-    setLanguage(value);
-    console.log("Selected Language:", value);
-    await AsyncStorage.setItem("selectedLanguage", value);
+    setLanguage(value); // Update the language state
+    await AsyncStorage.setItem("selectedLanguage", value); // Save the new language to AsyncStorage
   };
 
   const fetchUserProfile = async () => {
@@ -60,18 +113,19 @@ const SettingScreen: React.FC = () => {
     } catch (error) {
       console.error("Error fetching user profile:", error);
     } finally {
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // 1-second delay
       setLoading(false);
     }
   };
 
   const handleUpdate = async () => {
     if (password && !confirm_pass) {
-      Alert.alert("Error", "Please confirm your password");
+      Alert.alert(translations.error, translations.confirmPasswordError);
       return;
     }
 
     if (password && password !== confirm_pass) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert(translations.error, translations.passwordMismatch);
       return;
     }
 
@@ -79,7 +133,7 @@ const SettingScreen: React.FC = () => {
     try {
       const userId = await AsyncStorage.getItem("user_id");
       if (!userId) {
-        Alert.alert("Error", "User ID not found");
+        Alert.alert(translations.error, "User ID not found");
         return;
       }
 
@@ -102,10 +156,10 @@ const SettingScreen: React.FC = () => {
       setConfirmPass("");
       setPassword("");
 
-      Alert.alert("Success", "Profile updated successfully");
+      Alert.alert(translations.success, translations.profileUpdated);
     } catch (error) {
       console.error("Error updating profile:", error);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
+      Alert.alert(translations.error, translations.updateFailed);
     } finally {
       setLoading(false);
     }
@@ -119,13 +173,19 @@ const SettingScreen: React.FC = () => {
       await Promise.all(
         keysToDelete.map((key) => AsyncStorage.removeItem(key))
       );
-      Alert.alert("Logged out", "You have been logged out");
+      Alert.alert(translations.loggedOut, translations.logoutMessage);
       router.replace("../../login");
     } catch (error) {
-      // console.error("Error during logout:", error);
-      // Alert.alert("Error", "logout failed");
+      console.error("Error during logout:", error);
+      Alert.alert(translations.error, "Logout failed");
     }
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserProfile();
+    }, [])
+  );
 
   return (
     <PaperProvider theme={customTheme}>
@@ -147,9 +207,9 @@ const SettingScreen: React.FC = () => {
           <View
             style={[GlobalStyles.Weathercard, { width: 330, marginBottom: 0 }]}
           >
-            <Text style={GlobalStyles.label}>Profile</Text>
+            <Text style={GlobalStyles.label}>{translations.profile}</Text>
             <TextInput
-              label="Full Name"
+              label={translations.fullName}
               value={name}
               onChangeText={(name) => setName(name)}
               mode="outlined"
@@ -157,7 +217,7 @@ const SettingScreen: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Email"
+              label={translations.email}
               value={email}
               onChangeText={(email) => setEmail(email)}
               mode="outlined"
@@ -166,7 +226,7 @@ const SettingScreen: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Phone Number"
+              label={translations.phoneNumber}
               value={phone}
               onChangeText={(phone) => setPhoneNumber(phone)}
               mode="outlined"
@@ -175,7 +235,7 @@ const SettingScreen: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Password"
+              label={translations.password}
               value={password}
               onChangeText={(password) => setPassword(password)}
               mode="outlined"
@@ -184,7 +244,7 @@ const SettingScreen: React.FC = () => {
               autoCapitalize="none"
             />
             <TextInput
-              label="Confirm Password"
+              label={translations.confirmPassword}
               value={confirm_pass}
               onChangeText={(confirm_pass) => setConfirmPass(confirm_pass)}
               mode="outlined"
@@ -200,7 +260,7 @@ const SettingScreen: React.FC = () => {
               loading={loading}
               disabled={loading}
             >
-              Update
+              {translations.update}
             </Button>
           </View>
           <View
@@ -209,14 +269,14 @@ const SettingScreen: React.FC = () => {
               { width: 330, marginTop: 10, marginBottom: 10 },
             ]}
           >
-            <Text style={GlobalStyles.label}>Language</Text>
+            <Text style={GlobalStyles.label}>{translations.language}</Text>
             <RadioButton.Group
               onValueChange={handleLanguageChange}
               value={language}
             >
-              <RadioButton.Item label="English" value="en" />
-              <RadioButton.Item label="Tagalog" value="tl" />
-              <RadioButton.Item label="Hiligaynon" value="hil" />
+              <RadioButton.Item label={translations.english} value="en" />
+              <RadioButton.Item label={translations.tagalog} value="tl" />
+              <RadioButton.Item label={translations.hiligaynon} value="hil" />
             </RadioButton.Group>
           </View>
           <View
@@ -230,7 +290,7 @@ const SettingScreen: React.FC = () => {
               onPress={handleLogout}
               style={{ marginTop: 0, backgroundColor: "#F44336" }}
             >
-              Logout
+              {translations.logout}
             </Button>
           </View>
         </View>
