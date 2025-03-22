@@ -1,34 +1,40 @@
-import React, { useState } from "react";
-import { View, ScrollView, Platform, TouchableOpacity } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, ScrollView, Platform, TouchableOpacity, Alert } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import {
-  Provider as PaperProvider,
-  Text,
-  Button,
-  ActivityIndicator,
-} from "react-native-paper";
+import { Provider as PaperProvider, Text, Button, ActivityIndicator } from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import GlobalStyles from "../../assets/styles/styles";
 import customTheme from "../../assets/styles/theme";
 import api from "../../services/api";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../../hooks/translateText";
 
 const AddRice: React.FC = () => {
-  const [rice_variety_name, setRiceVariety] = React.useState<string>("");
-  const [planting_date, setPlantingDate] = React.useState(new Date());
-  const [loading, setLoading] = React.useState<boolean>(false);
+  const [rice_variety_name, setRiceVariety] = useState<string>("");
+  const [planting_date, setPlantingDate] = useState(new Date());
+  const [loading, setLoading] = useState<boolean>(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    addRiceVariety: "Add Rice Variety",
+    selectRiceVariety: "Select Rice Variety:",
+    selectPlantingDate: "Select Planting Date:",
+    addRiceVarietyButton: "Add Rice Variety",
+    riceVarietyRequired: "Rice variety name is required.",
+    plantingDateRequired: "Please select a planting date.",
+    riceVarietyAdded: "Rice variety added successfully.",
+    growthStageGenerated: "Growth stage schedule generated successfully!",
+    failedToGenerateSchedule: "Failed to generate schedule: ",
+    addFailed: "Add failed. Please try again.",
+  });
+
   const router = useRouter();
   const { rice_land_id } = useLocalSearchParams();
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false); // Hide the date picker
-    if (selectedDate) {
-      setPlantingDate(selectedDate);
-    }
-  };
-
+  // Rice varieties for the Picker
   const riceVarities = [
     { label: "-- Select Variety --", value: "" },
     { label: "NSIC Rc 222", value: "NSIC Rc 222" },
@@ -37,13 +43,64 @@ const AddRice: React.FC = () => {
     { label: "NSIC Rc 10", value: "NSIC Rc 10" },
   ];
 
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
+        }
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        addRiceVariety: "Add Rice Variety",
+        selectRiceVariety: "Select Rice Variety:",
+        selectPlantingDate: "Select Planting Date:",
+        addRiceVarietyButton: "Add Rice Variety",
+        riceVarietyRequired: "Rice variety name is required.",
+        plantingDateRequired: "Please select a planting date.",
+        riceVarietyAdded: "Rice variety added successfully.",
+        growthStageGenerated: "Growth stage schedule generated successfully!",
+        failedToGenerateSchedule: "Failed to generate schedule: ",
+        addFailed: "Add failed. Please try again.",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+      setIsTranslating(false);
+    };
+
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
+
+  // Handle date change from DateTimePicker
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false); // Hide the date picker
+    if (selectedDate) {
+      setPlantingDate(selectedDate);
+    }
+  };
+
+  // Handle adding rice variety
   const handleAddRiceVariety = async () => {
     if (!rice_variety_name) {
-      alert("Rice variety name is required.");
+      alert(translations.riceVarietyRequired);
       return;
     }
     if (!planting_date) {
-      alert("Please select a planting date.");
+      alert(translations.plantingDateRequired);
       return;
     }
 
@@ -65,7 +122,7 @@ const AddRice: React.FC = () => {
       });
 
       if (response.data.status === "success") {
-        alert("Rice variety added successfully.");
+        alert(translations.riceVarietyAdded);
 
         // Step 2: Generate growth stage schedule
         const scheduleResponse = await api.post(
@@ -78,31 +135,44 @@ const AddRice: React.FC = () => {
         );
 
         if (scheduleResponse.data.status === "success") {
-          alert("Growth stage schedule generated successfully!");
+          alert(translations.growthStageGenerated);
           console.log("Generated Schedule:", scheduleResponse.data.data);
         } else {
           alert(
-            "Failed to generate schedule: " + scheduleResponse.data.message
+            translations.failedToGenerateSchedule + scheduleResponse.data.message
           );
         }
 
         router.replace(`/(rices)?rice_land_id=${rice_land_id}`);
       } else {
-        alert("Adding variety failed. Please try again.");
+        alert(translations.addFailed);
       }
     } catch (error) {
       console.error("Add error:", error);
-      alert("Add failed. Please try again.");
+      alert(translations.addFailed);
     } finally {
       setLoading(false);
     }
   };
 
+  // Show loading indicator while translating
+  if (isTranslating) {
+    return (
+      <View style={GlobalStyles.loadingContainer}>
+        <ActivityIndicator
+          animating={true}
+          size="large"
+          color={GlobalStyles.activityIndicator.color}
+        />
+      </View>
+    );
+  }
+
   return (
     <PaperProvider theme={customTheme}>
       <View style={[GlobalStyles.TitleContainer]}>
         <Text variant="headlineLarge" style={[GlobalStyles.title]}>
-          Add Rice Variety
+          {translations.addRiceVariety}
         </Text>
       </View>
       <ScrollView
@@ -113,7 +183,7 @@ const AddRice: React.FC = () => {
       >
         <View style={[GlobalStyles.FormContainer]}>
           <View>
-            <Text>Select Rice Variety:</Text>
+            <Text>{translations.selectRiceVariety}</Text>
             <Picker
               selectedValue={rice_variety_name}
               onValueChange={(itemValue) => setRiceVariety(itemValue)}
@@ -130,7 +200,7 @@ const AddRice: React.FC = () => {
           </View>
 
           <View style={{ marginVertical: 10 }}>
-            <Text>Select Planting Date:</Text>
+            <Text>{translations.selectPlantingDate}</Text>
             <TouchableOpacity onPress={() => setShowDatePicker(true)}>
               <Text
                 style={[
@@ -159,7 +229,7 @@ const AddRice: React.FC = () => {
             disabled={loading}
             onPress={handleAddRiceVariety}
           >
-            Add Rice Variety
+            {translations.addRiceVarietyButton}
           </Button>
         </View>
       </ScrollView>

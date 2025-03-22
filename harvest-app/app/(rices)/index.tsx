@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, ImageBackground, ScrollView, Alert } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { View, ScrollView, Alert } from "react-native";
 import {
   Text,
   Button,
@@ -10,20 +10,96 @@ import {
 import GlobalStyles from "../../assets/styles/styles";
 import api from "../../services/api";
 import customTheme from "../../assets/styles/theme";
-import { Link, useRouter, useLocalSearchParams } from "expo-router";
+import {
+  Link,
+  useRouter,
+  useLocalSearchParams,
+  useFocusEffect,
+} from "expo-router";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
 import CropDetails from "../../crop_types/CropDetails";
 import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
 import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
+import translateText from "../../hooks/translateText"; // Import translation function
 
 const Index: React.FC = () => {
-  const [riceVariety, setRiceVariety] = React.useState<any>(null);
-  const [loading, setLoading] = React.useState<boolean>(true);
-  const router = useRouter();
-  const { rice_land_id } = useLocalSearchParams();
+  const [riceVariety, setRiceVariety] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
   const [riceLandId, setRiceLandId] = useState<number | null>(null);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    riceVarietyTitle: "Rice Variety",
+    addButton: "Add",
+    noRiceVariety: "No rice variety.",
+    backButton: "Back",
+    offlineMode: "Offline Mode",
+    displayingCachedData: "Displaying cached data.",
+    noCachedData: "No cached data found. Please go online to fetch data.",
+    cropNotFound: "Crop type not found.",
+    averageYield: "Average Yield",
+    maximumYield: "Maximum Yield",
+    maturity: "Maturity",
+    height: "Height",
+    reactionToPestsAndDiseases: "Reaction to Pests & Diseases",
+    grainSize: "Grain Size",
+    millingRecovery: "Milling Recovery",
+    eatingQuality: "Eating Quality",
+  });
 
+  const router = useRouter();
+  const { rice_land_id } = useLocalSearchParams();
+
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
+        }
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        riceVarietyTitle: "Rice Variety",
+        addButton: "Add",
+        noRiceVariety: "No rice variety.",
+        backButton: "Back",
+        offlineMode: "Offline Mode",
+        displayingCachedData: "Displaying cached data.",
+        noCachedData: "No cached data found. Please go online to fetch data.",
+        cropNotFound: "Crop type not found.",
+        averageYield: "Average Yield",
+        maximumYield: "Maximum Yield",
+        maturity: "Maturity",
+        height: "Height",
+        reactionToPestsAndDiseases: "Reaction to Pests & Diseases",
+        grainSize: "Grain Size",
+        millingRecovery: "Milling Recovery",
+        eatingQuality: "Eating Quality",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+      setIsTranslating(false);
+    };
+
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
+
+  // Load riceLandId from AsyncStorage
   useEffect(() => {
     const loadRiceLandId = async () => {
       try {
@@ -36,12 +112,13 @@ const Index: React.FC = () => {
           }
         }
       } catch (error) {
-        // console.error("Failed to load riceLandId from AsyncStorage:", error);
+        console.error("Failed to load riceLandId from AsyncStorage:", error);
       }
     };
 
     loadRiceLandId();
   }, []);
+
   // Check network connectivity
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -51,6 +128,7 @@ const Index: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Fetch rice variety data
   const fetchRiceVariety = async () => {
     try {
       if (isOffline) {
@@ -67,12 +145,17 @@ const Index: React.FC = () => {
 
           if (parsedData && parsedData.id && parsedData.rice_variety_name) {
             setRiceVariety(parsedData);
+            Alert.alert(
+              translations.offlineMode,
+              translations.displayingCachedData
+            );
           } else {
             console.error("Invalid cached rice variety data:", parsedData);
             setRiceVariety(null);
           }
         } else {
           console.log("No cached rice variety found.");
+          Alert.alert(translations.offlineMode, translations.noCachedData);
           setRiceVariety(null);
         }
       } else {
@@ -118,7 +201,8 @@ const Index: React.FC = () => {
     }
   }, [riceLandId, isOffline]);
 
-  if (loading) {
+  // Show loading indicator while translating or fetching data
+  if (loading || isTranslating) {
     return (
       <View style={GlobalStyles.loadingContainer}>
         <ActivityIndicator
@@ -134,7 +218,7 @@ const Index: React.FC = () => {
     <PaperProvider theme={customTheme}>
       <View style={[GlobalStyles.TitleContainer]}>
         <Text variant="headlineLarge" style={[GlobalStyles.title]}>
-          Rice Variety
+          {translations.riceVarietyTitle}
         </Text>
       </View>
       <Card style={GlobalStyles.RiceLandCard}>
@@ -147,7 +231,7 @@ const Index: React.FC = () => {
                   style={[GlobalStyles.addButton, { marginBottom: 20 }]}
                 >
                   <Link href={`/(rices)/add_rice?rice_land_id=${rice_land_id}`}>
-                    Add
+                    {translations.addButton}
                   </Link>
                 </Button>
               )}
@@ -157,21 +241,17 @@ const Index: React.FC = () => {
               >
                 {riceVariety ? (
                   <View key={riceVariety.id}>
-                    {/* <ImageBackground
-                      source={require("../../assets/images/rice-field.jpg")}
-                      style={GlobalStyles.RiceLandItem}
-                    >
-                      <View style={GlobalStyles.overlay}></View>
-                      <Text style={GlobalStyles.RiceLandTitle}>
-                        {riceVariety.rice_variety_name}
-                      </Text>
-                    </ImageBackground> */}
-                    <CropDetails cropType={riceVariety.rice_variety_name} />
+                    <CropDetails
+                      cropType={riceVariety.rice_variety_name}
+                      translations={translations} // Pass translations for static text
+                      targetLang={targetLang} // Pass the selected language
+                      translateText={translateText} // Pass the translation function
+                    />
                   </View>
                 ) : (
                   <View style={[GlobalStyles.noDataTextContainer]}>
                     <Text style={[GlobalStyles.dataText]}>
-                      No rice variety.
+                      {translations.noRiceVariety}
                     </Text>
                   </View>
                 )}
@@ -182,7 +262,9 @@ const Index: React.FC = () => {
               mode="contained"
               style={GlobalStyles.button}
             >
-              <Link href={`/(tabs)/?id=${rice_land_id}`}>Back</Link>
+              <Link href={`/(tabs)/?id=${rice_land_id}`}>
+                {translations.backButton}
+              </Link>
             </Button>
           </View>
         </Card.Content>

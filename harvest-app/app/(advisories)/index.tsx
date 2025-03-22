@@ -5,8 +5,8 @@ import {
   FlatList,
   ScrollView,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "@/services/api";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
@@ -17,11 +17,9 @@ import {
   PaperProvider,
   Button,
   TextInput,
-  Menu,
-  IconButton,
 } from "react-native-paper";
-import { Picker } from "@react-native-picker/picker";
-import DropDownPicker from "react-native-dropdown-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../../hooks/translateText"; // Import translation hook
 
 export default function Index() {
   const [advisories, setAdvisories] = useState<any[]>([]);
@@ -39,6 +37,48 @@ export default function Index() {
   const { land_id } = useLocalSearchParams();
   const [question, setQuestion] = useState<string>("");
   const [answer, setAnswer] = useState<string>("");
+  const [targetLang, setTargetLang] = useState<string>("en"); // Default language
+  const [translations, setTranslations] = useState({
+    fetchingPlace: "Fetching place...",
+    offlineMode: "Offline Mode",
+    displayingCachedData: "Displaying cached data.",
+    noCachedData: "No cached data found. Please go online to fetch data.",
+    location: "LOCATION:",
+    landSizeHectares: "LAND SIZE (hectares):",
+    landSizeSQM: "LAND SIZE (sqm):",
+    landCondition: "LAND CONDITION:",
+    riceGrowth: "RICE GROWTH:",
+    riceVariety: "Rice Variety",
+    advisories: "Advisories",
+    noDataAvailable: "No data available",
+    selectCondition: "-- Select Condition --",
+    irrigatedLowlandRice: "Irrigated Lowland Rice",
+    rainfedLowlandRice: "Rainfed Lowland Rice",
+    uplandRice: "Upland Rice",
+    notYetStarted: "Not Yet Started",
+    germination: "Germination",
+    seedingEstablishment: "Seeding Establishment",
+    tillering: "Tillering",
+    panicleInitiation: "Panicle Initiation",
+    booting: "Booting",
+    heading: "Heading",
+    flowering: "Flowering",
+    grainFilling: "Grain Filling",
+    maturity: "Maturity",
+    previous: "Previous",
+    next: "Next",
+    typeYourQuestion: "Type your question here...",
+    advisoryAlert: "Advisory Alert",
+    noAdvisoriesFound: "No advisories found. Generating advisory...",
+    success: "Success",
+    advisoryGenerated: "Advisory has been generated successfully.",
+    error: "Error",
+    failedToGenerateAdvisory: "Failed to generate advisory. Please try again.",
+    somethingWentWrong: "Something went wrong while generating the advisory.",
+    pleaseEnterQuestion: "Please enter a question.",
+    sorryCouldNotProcess: "Sorry, I couldn't process your question.",
+    tryAgain: "Something went wrong. Please try again.",
+  });
 
   const stageIcons: { [key: string]: string } = {
     Germination: "sprout",
@@ -54,6 +94,86 @@ export default function Index() {
 
   const today = new Date().toISOString().split("T")[0];
 
+  // Function to translate advisories
+  const translateAdvisories = async (advisories: string[]) => {
+    const translatedAdvisories = await Promise.all(
+      advisories.map(async (advisory) => {
+        return await translateText(advisory, targetLang);
+      })
+    );
+    return translatedAdvisories;
+  };
+
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
+        }
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+
+    const translateAll = async () => {
+      const keys = {
+        fetchingPlace: "Fetching place...",
+        offlineMode: "Offline Mode",
+        displayingCachedData: "Displaying cached data.",
+        noCachedData: "No cached data found. Please go online to fetch data.",
+        location: "LOCATION:",
+        landSizeHectares: "LAND SIZE (hectares):",
+        landSizeSQM: "LAND SIZE (sqm):",
+        landCondition: "LAND CONDITION:",
+        riceGrowth: "RICE GROWTH:",
+        riceVariety: "Rice Variety",
+        advisories: "Advisories",
+        noDataAvailable: "No data available",
+        selectCondition: "-- Select Condition --",
+        irrigatedLowlandRice: "Irrigated Lowland Rice",
+        rainfedLowlandRice: "Rainfed Lowland Rice",
+        uplandRice: "Upland Rice",
+        notYetStarted: "Not Yet Started",
+        germination: "Germination",
+        seedingEstablishment: "Seeding Establishment",
+        tillering: "Tillering",
+        panicleInitiation: "Panicle Initiation",
+        booting: "Booting",
+        heading: "Heading",
+        flowering: "Flowering",
+        grainFilling: "Grain Filling",
+        maturity: "Maturity",
+        previous: "Previous",
+        next: "Next",
+        typeYourQuestion: "Type your question here...",
+        advisoryAlert: "Advisory Alert",
+        noAdvisoriesFound: "No advisories found. Generating advisory...",
+        success: "Success",
+        advisoryGenerated: "Advisory has been generated successfully.",
+        error: "Error",
+        failedToGenerateAdvisory: "Failed to generate advisory. Please try again.",
+        somethingWentWrong: "Something went wrong while generating the advisory.",
+        pleaseEnterQuestion: "Please enter a question.",
+        sorryCouldNotProcess: "Sorry, I couldn't process your question.",
+        tryAgain: "Something went wrong. Please try again.",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+    };
+
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
+
   // Fetch advisories
   const fetchAdvisories = async (
     landId: string,
@@ -67,24 +187,24 @@ export default function Index() {
       const recent_advisories = response.data.recent_advisories;
 
       console.log("fetchAdvisories response:", today_advisories);
-      // console.log("fetchRecentAdvisories response:", recent_advisories);
 
       if (today_advisories.length > 0) {
         const advisoriesArray = JSON.parse(today_advisories[0].advisories);
-        setAdvisories(advisoriesArray);
+        const translatedAdvisories = await translateAdvisories(advisoriesArray); // Translate advisories
+        setAdvisories(translatedAdvisories);
 
         if (!isGenerating) {
           Alert.alert(
-            "Advisory Alert",
+            translations.advisoryAlert,
             "There are advisories for today. Please check them."
           );
         }
       } else {
         if (!isGenerating) {
-          // Alert.alert(
-          //   "Advisory Alert",
-          //   "No advisories found. Generating advisory..."
-          // );
+          Alert.alert(
+            translations.advisoryAlert,
+            translations.noAdvisoriesFound
+          );
           if (today_advisories.length === 0) {
             console.log("Generating advisory for", date);
             generateAdvisory(landId, date);
@@ -93,7 +213,7 @@ export default function Index() {
       }
     } catch (error) {
       console.error("Error fetching advisories:", error);
-      Alert.alert("Error", "Unable to fetch advisories.");
+      Alert.alert(translations.error, translations.somethingWentWrong);
     }
   };
 
@@ -114,17 +234,17 @@ export default function Index() {
       console.log("generateAdvisory response:", response.data);
 
       if (response.status === 200) {
-        Alert.alert("Success", "Advisory has been generated successfully.");
-        setAdvisories(response.data.advisories);
+        const advisoriesArray = response.data.advisories;
+        const translatedAdvisories = await translateAdvisories(advisoriesArray); // Translate advisories
+        setAdvisories(translatedAdvisories);
+
+        Alert.alert(translations.success, translations.advisoryGenerated);
       } else {
-        Alert.alert("Error", "Failed to generate advisory. Please try again.");
+        Alert.alert(translations.error, translations.failedToGenerateAdvisory);
       }
     } catch (error) {
       console.error("Error generating advisory:", error);
-      Alert.alert(
-        "Error",
-        "Something went wrong while generating the advisory."
-      );
+      Alert.alert(translations.error, translations.somethingWentWrong);
     } finally {
       setLoading(false);
     }
@@ -149,7 +269,7 @@ export default function Index() {
       fetchAdvisories(data.id, today);
     } catch (error) {
       console.error("Error fetching land details:", error);
-      Alert.alert("Error", "Unable to fetch land details.");
+      Alert.alert(translations.error, translations.somethingWentWrong);
     }
   };
 
@@ -195,30 +315,28 @@ export default function Index() {
       setWeatherLoading(false);
     } catch (error) {
       console.error("Error fetching weather data:", error);
-      Alert.alert("Error", "Unable to fetch weather data.");
+      Alert.alert(translations.error, translations.somethingWentWrong);
     }
   };
 
   const handleAskQuestion = async () => {
     if (!question.trim()) {
-      alert("Please enter a question.");
+      alert(translations.pleaseEnterQuestion);
       return;
     }
     setLoading(true);
     try {
       const response = await api.post("/ask_question", { question });
       console.log("API Response:", response.data);
-      // Ensure the response is in the expected format
       if (response.data && typeof response.data === "object") {
-        // Extract the message or data from the response
         const answerText = response.data.data;
         setAnswer(answerText);
       } else {
-        setAnswer("Sorry, I couldn't process your question.");
+        setAnswer(translations.sorryCouldNotProcess);
       }
     } catch (error) {
       console.error("Error asking question:", error);
-      alert("Something went wrong. Please try again.");
+      alert(translations.tryAgain);
     } finally {
       setLoading(false);
     }
@@ -423,7 +541,7 @@ export default function Index() {
                       width: "100%",
                     }}
                     value={question}
-                    placeholder="Type your question here..."
+                    placeholder={translations.typeYourQuestion}
                     onChangeText={(text) => setQuestion(text)}
                     autoCapitalize="none"
                   />
@@ -481,7 +599,7 @@ export default function Index() {
                         </Text>
                       ))
                     ) : (
-                      <Text>No advisories available</Text>
+                      <Text>{translations.noDataAvailable}</Text>
                     )}
                   </View>
                   <View
@@ -501,7 +619,7 @@ export default function Index() {
                       onPress={handlePreviousDay}
                       disabled={currentDayIndex === 0}
                     >
-                      Previous
+                      {translations.previous}
                     </Button>
                     <Button
                       icon="chevron-right"
@@ -510,13 +628,13 @@ export default function Index() {
                       onPress={handleNextDay}
                       disabled={currentDayIndex === 6}
                     >
-                      Next
+                      {translations.next}
                     </Button>
                   </View>
                 </ScrollView>
               </>
             ) : (
-              <Text>No data available</Text>
+              <Text>{translations.noDataAvailable}</Text>
             )}
           </>
         )}

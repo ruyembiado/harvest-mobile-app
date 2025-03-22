@@ -1,22 +1,88 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, ScrollView, Alert } from "react-native";
 import {
   Provider as PaperProvider,
   Text,
   TextInput,
-  Button,
+  Button, ActivityIndicator
 } from "react-native-paper";
-import { useRouter, useLocalSearchParams, Link } from "expo-router";
+import { useRouter, useLocalSearchParams, Link, useFocusEffect } from "expo-router";
 import GlobalStyles from "../../assets/styles/styles";
 import customTheme from "../../assets/styles/theme";
 import api from "../../services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import translateText from "../../hooks/translateText"; // Import translation function
 
 const AddNote: React.FC = () => {
   const [noteTitle, setNoteTitle] = useState<string>("");
   const [noteContents, setNoteContents] = useState<string[]>([""]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+  const [translations, setTranslations] = useState({
+    addNoteTitle: "Add Note",
+    noteTitleLabel: "Note Title:",
+    noteTitlePlaceholder: "Enter note title",
+    noteContentLabel: "Note Content",
+    removeButton: "Remove",
+    addMoreContentButton: "+ Add More Content",
+    addNoteButton: "Add Note",
+    backButton: "Back",
+    alertTitleRequired: "Rice land name is required.",
+    alertContentRequired: "Content fields are required.",
+    alertSuccess: "Note added successfully.",
+    alertFailed: "Could not add note. Please try again.",
+    alertMinContent: "At least one note content is required.",
+  });
+
   const router = useRouter();
   const { id } = useLocalSearchParams();
+
+  // Load the language from AsyncStorage when the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const loadLanguage = async () => {
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+        if (storedLang && storedLang !== targetLang) {
+          setTargetLang(storedLang); // Update targetLang if it has changed
+        }
+      };
+      loadLanguage();
+    }, [targetLang]) // Re-run when targetLang changes
+  );
+
+  // Translate all text when targetLang changes
+  useEffect(() => {
+    const translateAll = async () => {
+      setIsTranslating(true);
+      const keys = {
+        addNoteTitle: "Add Note",
+        noteTitleLabel: "Note Title:",
+        noteTitlePlaceholder: "Enter note title",
+        noteContentLabel: "Note Content",
+        removeButton: "Remove",
+        addMoreContentButton: "+ Add More Content",
+        addNoteButton: "Add Note",
+        backButton: "Back",
+        alertTitleRequired: "Rice land name is required.",
+        alertContentRequired: "Content fields are required.",
+        alertSuccess: "Note added successfully.",
+        alertFailed: "Could not add note. Please try again.",
+        alertMinContent: "At least one note content is required.",
+      };
+
+      const translated = {} as any;
+      for (const key in keys) {
+        translated[key] = await translateText(keys[key], targetLang);
+      }
+
+      setTranslations(translated);
+      await new Promise((resolve) => setTimeout(resolve, 1500));  // 1-second delay
+      setIsTranslating(false);
+    };
+
+    translateAll();
+  }, [targetLang]); // Re-translate when targetLang changes
 
   // Add a new content field
   const addContentField = () => {
@@ -33,7 +99,7 @@ const AddNote: React.FC = () => {
   // Delete a content field
   const deleteContentField = (index: number) => {
     if (noteContents.length === 1) {
-      Alert.alert("Alert", "At least one note content is required.");
+      Alert.alert(translations.alertMinContent);
       return;
     }
     const updatedContents = noteContents.filter((_, i) => i !== index);
@@ -42,12 +108,12 @@ const AddNote: React.FC = () => {
 
   const handleAddNote = async () => {
     if (!noteTitle) {
-      Alert.alert("Alert", "Rice land name is required.");
+      Alert.alert(translations.alertTitleRequired);
       return;
     }
 
     if (noteContents.every((content) => content.trim() === "")) {
-      Alert.alert("Alert", "Content field are required.");
+      Alert.alert(translations.alertContentRequired);
       return;
     }
 
@@ -61,20 +127,33 @@ const AddNote: React.FC = () => {
       });
 
       router.replace(`/(tabs)/notes?id=${id}`);
-      Alert.alert("Success", "Note added successfully.");
+      Alert.alert(translations.alertSuccess);
     } catch (error) {
       console.error("Add error:", error);
-      Alert.alert("Failed", "Could not add note. Please try again.");
+      Alert.alert(translations.alertFailed);
     } finally {
       setLoading(false);
     }
   };
 
+  // Show loading indicator while translating
+  if (isTranslating) {
+    return (
+      <View style={GlobalStyles.loadingContainer}>
+        <ActivityIndicator
+          animating={true}
+          size="large"
+          color={GlobalStyles.activityIndicator.color}
+        />
+      </View>
+    );
+  }
+
   return (
     <PaperProvider theme={customTheme}>
       <View style={[GlobalStyles.TitleContainer]}>
         <Text variant="headlineLarge" style={[GlobalStyles.title]}>
-          Add Note
+          {translations.addNoteTitle}
         </Text>
       </View>
       <ScrollView
@@ -86,9 +165,9 @@ const AddNote: React.FC = () => {
         <View style={[GlobalStyles.FormContainer]}>
           {/* Note Title */}
           <View>
-            <Text>Note Title:</Text>
+            <Text>{translations.noteTitleLabel}</Text>
             <TextInput
-              label="Enter note title"
+              label={translations.noteTitlePlaceholder}
               value={noteTitle}
               onChangeText={setNoteTitle}
               mode="outlined"
@@ -99,9 +178,11 @@ const AddNote: React.FC = () => {
           {/* Dynamic Note Content Fields (Textarea) */}
           {noteContents.map((content, index) => (
             <View key={index} style={{ marginBottom: 10 }}>
-              <Text>Note Content {index + 1}:</Text>
+              <Text>
+                {translations.noteContentLabel} {index + 1}:
+              </Text>
               <TextInput
-                label="Enter note content"
+                label={translations.noteTitlePlaceholder}
                 value={content}
                 onChangeText={(text) => updateContent(text, index)}
                 mode="outlined"
@@ -115,7 +196,7 @@ const AddNote: React.FC = () => {
                 disabled={noteContents.length === 1}
                 style={{ marginTop: 5, alignSelf: "flex-end" }}
               >
-                Remove
+                {translations.removeButton}
               </Button>
             </View>
           ))}
@@ -126,7 +207,7 @@ const AddNote: React.FC = () => {
             onPress={addContentField}
             style={GlobalStyles.button}
           >
-            + Add More Content
+            {translations.addMoreContentButton}
           </Button>
 
           {/* Submit Button */}
@@ -138,11 +219,11 @@ const AddNote: React.FC = () => {
             disabled={loading}
             onPress={handleAddNote}
           >
-            Add Note
+            {translations.addNoteButton}
           </Button>
         </View>
         <Button icon="arrow-left" mode="contained" style={GlobalStyles.button}>
-          <Link href={`/(tabs)/notes?id=${id}`}>Back</Link>
+          <Link href={`/(tabs)/notes?id=${id}`}>{translations.backButton}</Link>
         </Button>
       </ScrollView>
     </PaperProvider>
