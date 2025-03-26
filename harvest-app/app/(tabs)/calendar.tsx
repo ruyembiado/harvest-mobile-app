@@ -24,9 +24,11 @@ const CalendarScreen: React.FC = () => {
   const [isTaskModalVisible, setTaskModalVisible] = useState<boolean>(false);
   const [isUpdateMode, setIsUpdateMode] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
-  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [targetLang, setTargetLang] = useState<string>("en");
-  const [translations, setTranslations] = useState({
+  
+  // Default translations for offline mode
+  const defaultTranslations = {
     loading: "Loading...",
     growthStages: "Growth Stages",
     advisories: "Advisories",
@@ -45,104 +47,146 @@ const CalendarScreen: React.FC = () => {
     taskAdded: "Tasks added successfully.",
     taskUpdated: "Tasks updated successfully.",
     taskError: "Please add at least one task.",
-  });
+  };
+  
+  const [translations, setTranslations] = useState(defaultTranslations);
 
   // Load the language from AsyncStorage when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const loadLanguage = async () => {
-        const storedLang = await AsyncStorage.getItem("selectedLanguage");
-        if (storedLang && storedLang !== targetLang) {
-          setTargetLang(storedLang); // Update targetLang if it has changed
+        try {
+          const storedLang = await AsyncStorage.getItem("selectedLanguage");
+          if (storedLang && storedLang !== targetLang) {
+            setTargetLang(storedLang);
+          }
+        } catch (error) {
+          console.error("Error loading language:", error);
         }
       };
       loadLanguage();
-    }, [targetLang]) // Re-run when targetLang changes
+    }, [targetLang])
   );
 
-  // Translate all text when targetLang changes
+  // Translate all text when targetLang changes (only when online)
   useEffect(() => {
+    if (isOffline) {
+      // Use default translations when offline
+      setTranslations(defaultTranslations);
+      setIsTranslating(false);
+      return;
+    }
+
     const translateAll = async () => {
       setIsTranslating(true);
-      const keys = {
-        loading: "Loading...",
-        growthStages: "Growth Stages",
-        advisories: "Advisories",
-        tasks: "Tasks",
-        noAdvisories: "No advisories for this date.",
-        selectDateAdvisories: "Select a date to view advisories.",
-        noTasks: "No tasks for this date.",
-        selectDateTasks: "Select a date to view tasks.",
-        addTask: "Add Another Task",
-        updateTasks: "Update Tasks",
-        saveTasks: "Save Tasks",
-        addTaskTitle: "Add Tasks for",
-        updateTaskTitle: "Update Tasks for",
-        close: "Close",
-        taskPlaceholder: "Task",
-        taskAdded: "Tasks added successfully.",
-        taskUpdated: "Tasks updated successfully.",
-        taskError: "Please add at least one task.",
-      };
+      const keys = defaultTranslations;
 
-      const translated = {} as any;
-      for (const key in keys) {
-        translated[key] = await translateText(keys[key], targetLang);
+      try {
+        const translated = {} as any;
+        for (const key in keys) {
+          translated[key] = await translateText(keys[key], targetLang);
+        }
+        setTranslations(translated);
+      } catch (error) {
+        console.error("Translation error:", error);
+        // Fall back to default translations if translation fails
+        setTranslations(defaultTranslations);
+      } finally {
+        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5s delay
+        setIsTranslating(false);
       }
-
-      setTranslations(translated);
-      setIsTranslating(false);
     };
 
     translateAll();
-  }, [targetLang]); // Re-translate when targetLang changes
+  }, [targetLang, isOffline]);
 
-  // Translate growth stages
+  // Translate growth stages (only when online)
   const translateGrowthStages = async (stages: any[]) => {
-    const translatedStages = await Promise.all(
-      stages.map(async (stage) => {
-        const translatedStage = await translateText(
-          stage.rice_growth_stage,
-          targetLang
-        );
-        return {
-          ...stage,
-          rice_growth_stage: translatedStage, // Translated name for display
-          original_stage: stage.rice_growth_stage, // Original name for color mapping
-        };
-      })
-    );
-    setGrowthStages(translatedStages);
-  };
+    if (isOffline) {
+      setGrowthStages(stages.map(stage => ({
+        ...stage,
+        rice_growth_stage: stage.rice_growth_stage, // Use original text when offline
+        original_stage: stage.rice_growth_stage
+      })));
+      return;
+    }
 
-  // Translate advisories
-  const translateAdvisories = async (advisories: any[]) => {
-    const translatedAdvisories = await Promise.all(
-      advisories.map(async (advisory) => {
-        const advisoryMessages = JSON.parse(advisory.advisories);
-        const translatedMessages = await Promise.all(
-          advisoryMessages.map(async (message: string) => {
-            return await translateText(message, targetLang);
-          })
-        );
-        return { ...advisory, advisories: JSON.stringify(translatedMessages) };
-      })
-    );
-    setAdvisories(translatedAdvisories);
-  };
-
-  // Translate tasks
-  const translateTasks = async (tasks: { [key: string]: string[] }) => {
-    const translatedTasks = {} as { [key: string]: string[] };
-    for (const date in tasks) {
-      const translatedTaskList = await Promise.all(
-        tasks[date].map(async (task) => {
-          return await translateText(task, targetLang);
+    try {
+      const translatedStages = await Promise.all(
+        stages.map(async (stage) => {
+          const translatedStage = await translateText(
+            stage.rice_growth_stage,
+            targetLang
+          );
+          return {
+            ...stage,
+            rice_growth_stage: translatedStage,
+            original_stage: stage.rice_growth_stage,
+          };
         })
       );
-      translatedTasks[date] = translatedTaskList;
+      setGrowthStages(translatedStages);
+    } catch (error) {
+      console.error("Error translating growth stages:", error);
+      // Fall back to original text if translation fails
+      setGrowthStages(stages.map(stage => ({
+        ...stage,
+        rice_growth_stage: stage.rice_growth_stage,
+        original_stage: stage.rice_growth_stage
+      })));
     }
-    setTasks(translatedTasks);
+  };
+
+  // Translate advisories (only when online)
+  const translateAdvisories = async (advisories: any[]) => {
+    if (isOffline) {
+      setAdvisories(advisories); // Use original advisories when offline
+      return;
+    }
+
+    try {
+      const translatedAdvisories = await Promise.all(
+        advisories.map(async (advisory) => {
+          const advisoryMessages = JSON.parse(advisory.advisories);
+          const translatedMessages = await Promise.all(
+            advisoryMessages.map(async (message: string) => {
+              return await translateText(message, targetLang);
+            })
+          );
+          return { ...advisory, advisories: JSON.stringify(translatedMessages) };
+        })
+      );
+      setAdvisories(translatedAdvisories);
+    } catch (error) {
+      console.error("Error translating advisories:", error);
+      // Fall back to original advisories if translation fails
+      setAdvisories(advisories);
+    }
+  };
+
+  // Translate tasks (only when online)
+  const translateTasks = async (tasks: { [key: string]: string[] }) => {
+    if (isOffline) {
+      setTasks(tasks); // Use original tasks when offline
+      return;
+    }
+
+    try {
+      const translatedTasks = {} as { [key: string]: string[] };
+      for (const date in tasks) {
+        const translatedTaskList = await Promise.all(
+          tasks[date].map(async (task) => {
+            return await translateText(task, targetLang);
+          })
+        );
+        translatedTasks[date] = translatedTaskList;
+      }
+      setTasks(translatedTasks);
+    } catch (error) {
+      console.error("Error translating tasks:", error);
+      // Fall back to original tasks if translation fails
+      setTasks(tasks);
+    }
   };
 
   // Check network connectivity
@@ -159,53 +203,60 @@ const CalendarScreen: React.FC = () => {
     if (riceLandId) {
       fetchGrowthStages();
       fetchAdvisories();
-      fetchTasks();
+      if (selectedDate) {
+        fetchTasks();
+      }
     }
-  }, [riceLandId, isOffline, targetLang]); // Re-fetch when targetLang changes
+  }, [riceLandId, isOffline, targetLang, selectedDate]);
 
   // Fetch Growth Stages
   const fetchGrowthStages = async () => {
     try {
-      if (isOffline) {
-        const cachedGrowthStages = await AsyncStorage.getItem(
-          `cachedGrowthStages_${riceLandId}`
-        );
-        const cachedStagesToCalendar = await AsyncStorage.getItem(
-          `cachedStagesToCalendar_${riceLandId}`
-        );
-        if (cachedGrowthStages) {
-          const dataStages = JSON.parse(cachedGrowthStages);
-          await translateGrowthStages(dataStages);
+      setLoading(true);
+      
+      // Try to get cached data first
+      const cachedGrowthStages = await AsyncStorage.getItem(
+        `cachedGrowthStages_${riceLandId}`
+      );
+      const cachedStagesToCalendar = await AsyncStorage.getItem(
+        `cachedStagesToCalendar_${riceLandId}`
+      );
+      
+      if (cachedGrowthStages && cachedStagesToCalendar) {
+        const dataStages = JSON.parse(cachedGrowthStages);
+        const dataMarkedDates = JSON.parse(cachedStagesToCalendar);
+        
+        await translateGrowthStages(dataStages);
+        mapStagesToCalendar(dataMarkedDates);
+        
+        // If offline, we're done here
+        if (isOffline) {
+          setLoading(false);
+          return;
         }
-        if (cachedStagesToCalendar) {
-          const dataMarkedDates = JSON.parse(cachedStagesToCalendar);
-          mapStagesToCalendar(dataMarkedDates);
-        }
-      } else {
-        setLoading(true);
+      }
+      
+      // If online, fetch fresh data
+      if (!isOffline) {
         const response = await api.get(`/get_rice_growth_stages/${riceLandId}`);
-
+        
         if (response.data.status === "success") {
           await translateGrowthStages(response.data.data);
           mapStagesToCalendar(response.data.data);
-
-          // Cache growth stages data
+          
+          // Cache the data
           await AsyncStorage.setItem(
             `cachedGrowthStages_${riceLandId}`,
             JSON.stringify(response.data.data)
           );
-
-          // Cache marked dates
           await AsyncStorage.setItem(
             `cachedStagesToCalendar_${riceLandId}`,
             JSON.stringify(response.data.data)
           );
-        } else {
-          console.error("Error fetching growth stages:", response.data.message);
         }
       }
     } catch (error) {
-      console.error("Network error:", error);
+      console.error("Error fetching growth stages:", error);
     } finally {
       setLoading(false);
     }
@@ -214,28 +265,34 @@ const CalendarScreen: React.FC = () => {
   // Fetch Advisories
   const fetchAdvisories = async () => {
     try {
-      if (isOffline) {
-        const cachedAdvisories = await AsyncStorage.getItem(
-          `cachedAdvisories_${riceLandId}`
-        );
-        if (cachedAdvisories) {
-          const data = JSON.parse(cachedAdvisories);
-          await translateAdvisories(data);
+      // Try to get cached data first
+      const cachedAdvisories = await AsyncStorage.getItem(
+        `cachedAdvisories_${riceLandId}`
+      );
+      
+      if (cachedAdvisories) {
+        const data = JSON.parse(cachedAdvisories);
+        await translateAdvisories(data);
+        
+        // If offline, we're done here
+        if (isOffline) {
+          return;
         }
-      } else {
+      }
+      
+      // If online, fetch fresh data
+      if (!isOffline) {
         const response = await api.get(`/get_all_advisories/${riceLandId}`);
-        if (response) {
+        if (response.data) {
           await translateAdvisories(response.data);
           await AsyncStorage.setItem(
             `cachedAdvisories_${riceLandId}`,
             JSON.stringify(response.data)
           );
-        } else {
-          console.error("Error fetching advisories:", response.data.message);
         }
       }
     } catch (error) {
-      console.error("Network error:", error);
+      console.error("Error fetching advisories:", error);
     }
   };
 
@@ -244,15 +301,23 @@ const CalendarScreen: React.FC = () => {
     if (!selectedDate) return;
 
     try {
-      if (isOffline) {
-        const cachedTasks = await AsyncStorage.getItem(
-          `cachedTasks_${riceLandId}`
-        );
-        if (cachedTasks) {
-          const data = JSON.parse(cachedTasks);
-          await translateTasks(data);
+      // Try to get cached data first
+      const cachedTasks = await AsyncStorage.getItem(
+        `cachedTasks_${riceLandId}`
+      );
+      
+      if (cachedTasks) {
+        const data = JSON.parse(cachedTasks);
+        await translateTasks(data);
+        
+        // If offline, we're done here
+        if (isOffline) {
+          return;
         }
-      } else {
+      }
+      
+      // If online, fetch fresh data
+      if (!isOffline) {
         const response = await api.get(`/get_task`, {
           params: {
             date: selectedDate,
@@ -319,7 +384,6 @@ const CalendarScreen: React.FC = () => {
   // Handle day press
   const handleDayPress = (day: any) => {
     setSelectedDate(day.dateString);
-    fetchTasks();
   };
 
   // Add task input field
@@ -349,13 +413,25 @@ const CalendarScreen: React.FC = () => {
       }
 
       try {
-        await api.post("/add_tasks", {
-          tasks: taskInputs.filter((task) => task.trim()),
-          date: selectedDate,
-          rice_land_id: riceLandId,
-        });
+        if (!isOffline) {
+          await api.post("/add_tasks", {
+            tasks: taskInputs.filter((task) => task.trim()),
+            date: selectedDate,
+            rice_land_id: riceLandId,
+          });
+        }
 
-        await fetchTasks();
+        // Update local state and cache
+        const newTasks = {
+          ...tasks,
+          [selectedDate]: taskInputs.filter(task => task.trim()),
+        };
+        setTasks(newTasks);
+        await AsyncStorage.setItem(
+          `cachedTasks_${riceLandId}`,
+          JSON.stringify(newTasks)
+        );
+
         setTaskInputs([""]);
         setTaskModalVisible(false);
         Alert.alert(translations.taskAdded);
@@ -374,13 +450,25 @@ const CalendarScreen: React.FC = () => {
       }
 
       try {
-        await api.post("/update_tasks", {
-          tasks: taskInputs.filter((task) => task.trim()),
-          date: selectedDate,
-          rice_land_id: riceLandId,
-        });
+        if (!isOffline) {
+          await api.post("/update_tasks", {
+            tasks: taskInputs.filter((task) => task.trim()),
+            date: selectedDate,
+            rice_land_id: riceLandId,
+          });
+        }
 
-        await fetchTasks();
+        // Update local state and cache
+        const newTasks = {
+          ...tasks,
+          [selectedDate]: taskInputs.filter(task => task.trim()),
+        };
+        setTasks(newTasks);
+        await AsyncStorage.setItem(
+          `cachedTasks_${riceLandId}`,
+          JSON.stringify(newTasks)
+        );
+
         setTaskInputs([""]);
         setTaskModalVisible(false);
         setIsUpdateMode(false);

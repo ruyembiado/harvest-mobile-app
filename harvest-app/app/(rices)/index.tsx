@@ -93,6 +93,7 @@ const Index: React.FC = () => {
       }
 
       setTranslations(translated);
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // 1.5s delay
       setIsTranslating(false);
     };
 
@@ -112,7 +113,7 @@ const Index: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error("Failed to load riceLandId from AsyncStorage:", error);
+        // console.error("Failed to load riceLandId from AsyncStorage:", error);
       }
     };
 
@@ -145,18 +146,18 @@ const Index: React.FC = () => {
 
           if (parsedData && parsedData.id && parsedData.rice_variety_name) {
             setRiceVariety(parsedData);
-            Alert.alert(
-              translations.offlineMode,
-              translations.displayingCachedData
-            );
+            // Alert.alert(
+            //   translations.offlineMode,
+            //   translations.displayingCachedData
+            // );
           } else {
-            console.error("Invalid cached rice variety data:", parsedData);
+            // console.error("Invalid cached rice variety data:", parsedData);
             setRiceVariety(null);
           }
         } else {
-          console.log("No cached rice variety found.");
-          Alert.alert(translations.offlineMode, translations.noCachedData);
-          setRiceVariety(null);
+          // console.log("No cached rice variety found.");
+          // Alert.alert(translations.offlineMode, translations.noCachedData);
+          // setRiceVariety(null);
         }
       } else {
         // Online mode: Fetch fresh data
@@ -183,12 +184,12 @@ const Index: React.FC = () => {
           );
           console.log("Saved Rice Variety (Online):", savedRiceVariety);
         } else {
-          console.error("Error fetching rice variety:", response.data.error);
+          // console.error("Error fetching rice variety:", response.data.error);
           setRiceVariety(null);
         }
       }
     } catch (error) {
-      console.error("Network error:", error);
+      // console.error("Network error:", error);
       setRiceVariety(null);
     } finally {
       setLoading(false);
@@ -243,9 +244,10 @@ const Index: React.FC = () => {
                   <View key={riceVariety.id}>
                     <CropDetails
                       cropType={riceVariety.rice_variety_name}
-                      translations={translations} // Pass translations for static text
-                      targetLang={targetLang} // Pass the selected language
-                      translateText={translateText} // Pass the translation function
+                      translations={translations}
+                      targetLang={targetLang}
+                      translateText={translateText}
+                      isOffline={isOffline} 
                     />
                   </View>
                 ) : (

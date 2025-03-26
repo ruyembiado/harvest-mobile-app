@@ -12,17 +12,18 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import translateText from "../../hooks/translateText";
 
 const WeatherScreen: React.FC = () => {
-  const { riceLandId, setRiceLandId } = useRiceLand();
-  const [landLoading, setLandLoading] = useState<boolean>(false);
-  const [weatherLoading, setWeatherLoading] = useState<boolean>(false);
+  const { riceLandId } = useRiceLand();
+  const [landLoading, setLandLoading] = useState(false);
+  const [weatherLoading, setWeatherLoading] = useState(false);
   const [rice_land_lat, setRiceLandLat] = useState<string | null>(null);
   const [rice_land_long, setRiceLandLong] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<Array<any>>([]);
   const [current_weather_temperature, setCurrentWeatherTemp] = useState<any>(null);
-  const [isOffline, setIsOffline] = useState<boolean>(false);
-  const [isTranslating, setIsTranslating] = useState<boolean>(true);
-  const [targetLang, setTargetLang] = useState<string>("en"); // Default language
-  const [translations, setTranslations] = useState({
+  const [isOffline, setIsOffline] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(true);
+  const [targetLang, setTargetLang] = useState<string>("en");
+
+  const defaultTranslations = {
     loading: "Loading...",
     highestTemperature: "Highest Temperature",
     lowestTemperature: "Lowest Temperature",
@@ -32,47 +33,44 @@ const WeatherScreen: React.FC = () => {
     noCachedData: "No cached data found. Please go online to fetch data.",
     error: "Error",
     fetchFailed: "Unable to fetch data. Please try again.",
-  });
+  };
 
-  // Load the language from AsyncStorage when the screen comes into focus
+  const [translations, setTranslations] = useState(defaultTranslations);
+
+  // Load language settings
   useFocusEffect(
     useCallback(() => {
       const loadLanguage = async () => {
         const storedLang = await AsyncStorage.getItem("selectedLanguage");
         if (storedLang && storedLang !== targetLang) {
-          setTargetLang(storedLang); // Update targetLang if it has changed
+          setTargetLang(storedLang);
         }
       };
       loadLanguage();
-    }, [targetLang]) // Re-run when targetLang changes
+    }, [targetLang])
   );
 
-  // Translate all text when targetLang changes
+  // Translate text only when online
   useEffect(() => {
     const translateAll = async () => {
-      const keys = {
-        loading: "Loading...",
-        highestTemperature: "Highest Temperature",
-        lowestTemperature: "Lowest Temperature",
-        wind: "Wind",
-        rain: "Rain",
-        sunshine: "Sunshine",
-        noCachedData: "No cached data found. Please go online to fetch data.",
-        error: "Error",
-        fetchFailed: "Unable to fetch data. Please try again.",
-      };
+      if (isOffline) {
+        setTranslations(defaultTranslations); 
+        setIsTranslating(false);
+        return;
+      }
 
       const translated = {} as any;
-      for (const key in keys) {
-        translated[key] = await translateText(keys[key], targetLang);
+      for (const key in defaultTranslations) {
+        translated[key] = await translateText(defaultTranslations[key], targetLang);
       }
 
       setTranslations(translated);
+      await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5s delay
       setIsTranslating(false);
     };
 
     translateAll();
-  }, [targetLang]); // Re-translate when targetLang changes
+  }, [targetLang, isOffline]);
 
   // Check network connectivity
   useEffect(() => {
@@ -91,22 +89,15 @@ const WeatherScreen: React.FC = () => {
 
       try {
         if (isOffline) {
-          // Offline mode: Retrieve cached data
           const cachedLandData = await AsyncStorage.getItem(`cachedLandData_${riceLandId}`);
           if (cachedLandData) {
             const data = JSON.parse(cachedLandData);
-            if (data && data.rice_land_lat && data.rice_land_long) {
-              setRiceLandLat(data.rice_land_lat);
-              setRiceLandLong(data.rice_land_long);
-              console.log("Using cached land data:", data);
-            } else {
-              throw new Error("Invalid cached land data");
-            }
+            setRiceLandLat(data.rice_land_lat);
+            setRiceLandLong(data.rice_land_long);
           } else {
             throw new Error("No cached land data found");
           }
         } else {
-          // Online mode: Fetch fresh data
           const response = await api.get(`/get_rice_land/${riceLandId}`);
           const data = response.data;
 
@@ -114,15 +105,15 @@ const WeatherScreen: React.FC = () => {
             setRiceLandLat(data.rice_land_lat);
             setRiceLandLong(data.rice_land_long);
 
-            // Cache land data
-            await AsyncStorage.setItem(`cachedLandData_${riceLandId}`, JSON.stringify(data));
-            console.log("Cached land data:", data);
+            await AsyncStorage.setItem(
+              `cachedLandData_${riceLandId}`,
+              JSON.stringify(data)
+            );
           } else {
             throw new Error("Invalid land data received");
           }
         }
       } catch (error) {
-        console.error("Error fetching land details:", error);
         Alert.alert(
           translations.error,
           isOffline ? translations.noCachedData : translations.fetchFailed
@@ -134,39 +125,32 @@ const WeatherScreen: React.FC = () => {
     fetchLandDetails();
   }, [riceLandId, isOffline]);
 
-  // Fetch weather data when latitude and longitude are available
+  // Fetch weather data
   useEffect(() => {
     if (rice_land_lat && rice_land_long) {
       fetchWeatherData();
     }
-  }, [rice_land_lat, rice_land_long, targetLang]); // Re-fetch when targetLang changes
+  }, [rice_land_lat, rice_land_long, isOffline]);
 
   const fetchWeatherData = async () => {
     setWeatherLoading(true);
 
     try {
       if (isOffline) {
-        // Offline mode: Retrieve cached data
         const cachedWeatherData = await AsyncStorage.getItem(`cachedWeatherData_${riceLandId}`);
         const cachedCurrentTemp = await AsyncStorage.getItem(`cachedCurrentTemp_${riceLandId}`);
 
         if (cachedWeatherData && cachedCurrentTemp) {
           setWeatherData(JSON.parse(cachedWeatherData));
           setCurrentWeatherTemp(JSON.parse(cachedCurrentTemp));
-          console.log("Using cached weather data:", cachedWeatherData);
         } else {
           throw new Error("No cached weather data found");
         }
       } else {
-        // Online mode: Fetch fresh data
         const response = await fetch(
           `https://api.open-meteo.com/v1/forecast?latitude=${rice_land_lat}&longitude=${rice_land_long}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max,sunshine_duration,weathercode&timezone=auto&current_weather=true`
         );
         const data = await response.json();
-
-        if (!data || !data.daily || !data.daily.time) {
-          throw new Error("Invalid API response structure");
-        }
 
         setCurrentWeatherTemp(data.current_weather.temperature);
 
@@ -179,58 +163,42 @@ const WeatherScreen: React.FC = () => {
           sun: `${Math.round((data.daily.sunshine_duration?.[index] ?? 0) / 3600)}h`,
           weatherCode: data.daily.weathercode?.[index] ?? 0,
           day: new Date(date).toLocaleDateString("en-US", { weekday: "short" }),
+          icon: getWeatherIcon(data.daily.weathercode?.[index]),
         }));
 
-        // Map weather codes to icons
-        const updatedWeatherData = transformedData.map((item) => ({
-          ...item,
-          icon: getWeatherIcon(item.weatherCode),
-        }));
+        setWeatherData(transformedData);
 
-        setWeatherData(updatedWeatherData);
-
-        // Cache weather data
-        await AsyncStorage.setItem(`cachedWeatherData_${riceLandId}`, JSON.stringify(updatedWeatherData));
-        await AsyncStorage.setItem(`cachedCurrentTemp_${riceLandId}`, JSON.stringify(data.current_weather.temperature));
-
-        console.log("Cached weather data:", updatedWeatherData);
+        await AsyncStorage.setItem(
+          `cachedWeatherData_${riceLandId}`,
+          JSON.stringify(transformedData)
+        );
+        await AsyncStorage.setItem(
+          `cachedCurrentTemp_${riceLandId}`,
+          JSON.stringify(data.current_weather.temperature)
+        );
       }
     } catch (error) {
-      console.error("Error fetching weather data:", error.message);
       Alert.alert(
         translations.error,
         isOffline ? translations.noCachedData : translations.fetchFailed
       );
     } finally {
-      await new Promise((resolve) => setTimeout(resolve, 1500));  // 1-second delay
       setWeatherLoading(false);
     }
   };
 
   const weatherIcons = {
-    0: "weather-sunny", // Clear sky
-    1: "weather-partly-cloudy", // Mainly clear
-    2: "weather-cloudy", // Partly cloudy
-    3: "weather-cloudy", // Overcast
-    45: "weather-fog", // Fog
-    48: "weather-fog", // Depositing rime fog
-    51: "weather-rainy", // Drizzle: Light
-    53: "weather-rainy", // Drizzle: Moderate
-    55: "weather-rainy", // Drizzle: Dense
-    61: "weather-rainy", // Rain: Slight
-    63: "weather-pouring", // Rain: Moderate
-    65: "weather-pouring", // Rain: Heavy
-    80: "weather-rainy", // Showers: Slight
-    81: "weather-rainy", // Showers: Moderate
-    82: "weather-pouring", // Showers: Heavy
-    95: "weather-lightning", // Thunderstorm: Slight
-    96: "weather-lightning-rainy", // Thunderstorm: Moderate
-    99: "weather-lightning-rainy", // Thunderstorm: Heavy
+    0: "weather-sunny",
+    1: "weather-partly-cloudy",
+    2: "weather-cloudy",
+    3: "weather-cloudy",
+    45: "weather-fog",
+    51: "weather-rainy",
+    61: "weather-pouring",
+    95: "weather-lightning",
   };
 
-  const getWeatherIcon = (code: number) => {
-    return weatherIcons[code] || "weather-cloudy";
-  };
+  const getWeatherIcon = (code: number) => weatherIcons[code] || "weather-cloudy";
 
   const today = new Date().toISOString().split("T")[0];
 

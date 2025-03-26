@@ -28,8 +28,10 @@ export default function Index() {
   const [weatherData, setWeatherData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
-  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [targetLang, setTargetLang] = useState<string>("en");
+  
+  // Default English translations
   const [translations, setTranslations] = useState({
     fetchingPlace: "Fetching place...",
     offlineMode: "Offline Mode",
@@ -83,94 +85,146 @@ export default function Index() {
   const { id } = useLocalSearchParams();
   const navigation = useNavigation();
 
-  // Load the language from AsyncStorage when the screen comes into focus
+  // Cache translations when they're updated
+  const cacheTranslations = async (translations: any, lang: string) => {
+    try {
+      await AsyncStorage.setItem(`translations_${lang}`, JSON.stringify(translations));
+    } catch (error) {
+      console.error("Error caching translations:", error);
+    }
+  };
+
+  // Load cached translations
+  const loadCachedTranslations = async (lang: string) => {
+    try {
+      const cachedTranslations = await AsyncStorage.getItem(`translations_${lang}`);
+      if (cachedTranslations) {
+        return JSON.parse(cachedTranslations);
+      }
+      return null;
+    } catch (error) {
+      console.error("Error loading cached translations:", error);
+      return null;
+    }
+  };
+
+  // Update condition and stage labels based on translations
+  const updateConditionAndStageLabels = (translated: any) => {
+    setRiceLandConditions([
+      { label: translated.selectCondition, value: "" },
+      { label: translated.irrigatedLowlandRice, value: "Irrigated Lowland Rice" },
+      { label: translated.rainfedLowlandRice, value: "Rainfed Lowland Rice" },
+      { label: translated.uplandRice, value: "Upland Rice" },
+    ]);
+
+    setRiceLandStages([
+      { label: translated.notYetStarted, value: "Not Yet Started" },
+      { label: translated.germination, value: "Germination" },
+      { label: translated.seedingEstablishment, value: "Seeding Establishment" },
+      { label: translated.tillering, value: "Tillering" },
+      { label: translated.panicleInitiation, value: "Panicle Initiation" },
+      { label: translated.booting, value: "Booting" },
+      { label: translated.heading, value: "Heading" },
+      { label: translated.flowering, value: "Flowering" },
+      { label: translated.grainFilling, value: "Grain Filling" },
+      { label: translated.maturity, value: "Maturity" },
+    ]);
+  };
+
+  // Load the language and data when the screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      const loadLanguage = async () => {
-        const storedLang = await AsyncStorage.getItem("selectedLanguage");
-        if (storedLang && storedLang !== targetLang) {
-          setTargetLang(storedLang); // Update targetLang if it has changed
+      const loadData = async () => {
+        try {
+          // Use Promise.all to load language and check network status in parallel
+          const [storedLang, netInfo] = await Promise.all([
+            AsyncStorage.getItem("selectedLanguage"),
+            NetInfo.fetch(),
+          ]);
+
+          setIsOffline(!netInfo.isConnected);
+
+          if (storedLang && storedLang !== targetLang) {
+            setTargetLang(storedLang);
+          }
+
+          // Only attempt translation if online
+          if (netInfo.isConnected) {
+            await handleTranslations(storedLang || targetLang);
+          }
+
+          await fetchLandDetails();
+        } catch (error) {
+          console.error("Error loading data:", error);
         }
       };
-      loadLanguage();
-    }, [targetLang]) // Re-run when targetLang changes
+
+      loadData();
+    }, [targetLang])
   );
 
-  // Translate all text when targetLang changes
-  useEffect(() => {
-    const translateAll = async () => {
-      setIsTranslating(true);
-      const keys = {
-        fetchingPlace: "Fetching place...",
-        offlineMode: "Offline Mode",
-        displayingCachedData: "Displaying cached data.",
-        noCachedData: "No cached data found. Please go online to fetch data.",
-        location: "LOCATION:",
-        landSizeHectares: "LAND SIZE (hectares):",
-        landSizeSQM: "LAND SIZE (sqm):",
-        landCondition: "LAND CONDITION:",
-        riceGrowth: "RICE GROWTH:",
-        riceVariety: "Rice Variety",
-        advisories: "Advisories",
-        noDataAvailable: "No data available",
-        selectCondition: "-- Select Condition --",
-        irrigatedLowlandRice: "Irrigated Lowland Rice",
-        rainfedLowlandRice: "Rainfed Lowland Rice",
-        uplandRice: "Upland Rice",
-        notYetStarted: "Not Yet Started",
-        germination: "Germination",
-        seedingEstablishment: "Seeding Establishment",
-        tillering: "Tillering",
-        panicleInitiation: "Panicle Initiation",
-        booting: "Booting",
-        heading: "Heading",
-        flowering: "Flowering",
-        grainFilling: "Grain Filling",
-        maturity: "Maturity",
-      };
-
-      const translated = {} as any;
-      for (const key in keys) {
-        translated[key] = await translateText(keys[key], targetLang);
-      }
-
-      setTranslations(translated);
-
-      // Update riceLandConditions and riceLandStages with translated labels
-      setRiceLandConditions([
-        { label: translated.selectCondition, value: "" },
-        { label: translated.irrigatedLowlandRice, value: "Irrigated Lowland Rice" },
-        { label: translated.rainfedLowlandRice, value: "Rainfed Lowland Rice" },
-        { label: translated.uplandRice, value: "Upland Rice" },
-      ]);
-
-      setRiceLandStages([
-        { label: translated.notYetStarted, value: "Not Yet Started" },
-        { label: translated.germination, value: "Germination" },
-        { label: translated.seedingEstablishment, value: "Seeding Establishment" },
-        { label: translated.tillering, value: "Tillering" },
-        { label: translated.panicleInitiation, value: "Panicle Initiation" },
-        { label: translated.booting, value: "Booting" },
-        { label: translated.heading, value: "Heading" },
-        { label: translated.flowering, value: "Flowering" },
-        { label: translated.grainFilling, value: "Grain Filling" },
-        { label: translated.maturity, value: "Maturity" },
-      ]);
-
-      setIsTranslating(false);
+  // Handle translations
+  const handleTranslations = async (lang: string) => {
+    setIsTranslating(true);
+    
+    // Default English translations
+    const keys = {
+      fetchingPlace: "Fetching place...",
+      offlineMode: "Offline Mode",
+      displayingCachedData: "Displaying cached data.",
+      noCachedData: "No cached data found. Please go online to fetch data.",
+      location: "LOCATION:",
+      landSizeHectares: "LAND SIZE (hectares):",
+      landSizeSQM: "LAND SIZE (sqm):",
+      landCondition: "LAND CONDITION:",
+      riceGrowth: "RICE GROWTH:",
+      riceVariety: "Rice Variety",
+      advisories: "Advisories",
+      noDataAvailable: "No data available",
+      selectCondition: "-- Select Condition --",
+      irrigatedLowlandRice: "Irrigated Lowland Rice",
+      rainfedLowlandRice: "Rainfed Lowland Rice",
+      uplandRice: "Upland Rice",
+      notYetStarted: "Not Yet Started",
+      germination: "Germination",
+      seedingEstablishment: "Seeding Establishment",
+      tillering: "Tillering",
+      panicleInitiation: "Panicle Initiation",
+      booting: "Booting",
+      heading: "Heading",
+      flowering: "Flowering",
+      grainFilling: "Grain Filling",
+      maturity: "Maturity",
     };
 
-    translateAll();
-  }, [targetLang]); // Re-translate when targetLang changes
+    try {
+      // Only translate if online
+      if (!isOffline) {
+        // Translate all keys in parallel
+        const translationPromises = Object.entries(keys).map(async ([key, value]) => {
+          return { key, value: await translateText(value, lang) };
+        });
 
-  // Check network connectivity
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      setIsOffline(!state.isConnected);
-    });
+        const translatedEntries = await Promise.all(translationPromises);
+        const translated = translatedEntries.reduce((acc, { key, value }) => {
+          acc[key] = value;
+          return acc;
+        }, {} as any);
 
-    return () => unsubscribe();
-  }, []);
+        setTranslations(translated);
+        updateConditionAndStageLabels(translated);
+        await cacheTranslations(translated, lang);
+      }
+    } catch (error) {
+      console.error("Translation error:", error);
+      // Fallback to English if translation fails
+      setTranslations(keys);
+      updateConditionAndStageLabels(keys);
+    } finally {
+      await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5s delay
+      setIsTranslating(false);
+    }
+  };
 
   // Fetch rice land details
   const fetchLandDetails = async () => {
@@ -183,9 +237,9 @@ export default function Index() {
         if (cachedRiceLand) {
           const data = JSON.parse(cachedRiceLand);
           setRiceLandData(data);
-          Alert.alert(translations.offlineMode, translations.displayingCachedData);
+          // Alert.alert(translations.offlineMode, translations.displayingCachedData);
         } else {
-          Alert.alert(translations.offlineMode, translations.noCachedData);
+          // Alert.alert(translations.offlineMode, translations.noCachedData);
         }
       } else {
         // Online mode: Fetch data from API
@@ -197,8 +251,8 @@ export default function Index() {
         await AsyncStorage.setItem(`cachedRiceLand_${id}`, JSON.stringify(data));
       }
     } catch (error) {
-      console.error("Error fetching land details:", error);
-      Alert.alert(translations.error, translations.fetchFailed);
+      // console.error("Error fetching land details:", error);
+      // Alert.alert("Error", "Failed to fetch land details.");
     } finally {
       setLoading(false);
     }
@@ -226,9 +280,9 @@ export default function Index() {
         const cachedWeatherData = await AsyncStorage.getItem(`cachedWeatherData_${id}`);
         if (cachedWeatherData) {
           setWeatherData(JSON.parse(cachedWeatherData));
-          Alert.alert(translations.offlineMode, translations.displayingCachedData);
+          // Alert.alert(translations.offlineMode, translations.displayingCachedData);
         } else {
-          Alert.alert(translations.offlineMode, translations.noCachedData);
+          // Alert.alert(translations.offlineMode, translations.noCachedData);
         }
       } else {
         const response = await api.get(
@@ -243,8 +297,8 @@ export default function Index() {
         );
       }
     } catch (error) {
-      console.error("Error fetching weather data:", error);
-      Alert.alert(translations.error, translations.fetchFailed);
+      // console.error("Error fetching weather data:", error);
+      // Alert.alert("Error", "Failed to fetch weather data.");
     } finally {
       setWeatherLoading(false);
     }
@@ -273,19 +327,20 @@ export default function Index() {
         setPlaceName(translations.fetchingPlace);
       }
     } catch (error) {
-      console.error("Error fetching place:", error);
-      Alert.alert("Error", "Failed to fetch place name.");
+      // console.error("Error fetching place:", error);
+      // Alert.alert("Error", "Failed to fetch place name.");
     }
   };
 
   useEffect(() => {
-    fetchLandDetails();
-  }, [id, isOffline]);
-
-  useEffect(() => {
     if (rice_land_lat && rice_land_long) {
-      reverseGeocodeExpo(parseFloat(rice_land_lat), parseFloat(rice_land_long));
-      fetchWeatherData();
+      // Run these in parallel
+      Promise.all([
+        reverseGeocodeExpo(parseFloat(rice_land_lat), parseFloat(rice_land_long)),
+        fetchWeatherData()
+      ]).catch(error => {
+        console.error("Error in parallel operations:", error);
+      });
     }
   }, [rice_land_lat, rice_land_long]);
 
@@ -316,7 +371,7 @@ export default function Index() {
       99: "weather-lightning-rainy",
     };
 
-    return weatherIcons[weatherCode] || "weather-cloudy"; // Default icon
+    return weatherIcons[weatherCode] || "weather-cloudy";
   };
 
   const currentDate = new Date();

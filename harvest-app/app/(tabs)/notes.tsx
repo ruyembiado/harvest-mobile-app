@@ -18,7 +18,7 @@ const NotesScreen: React.FC = () => {
   const { id } = useLocalSearchParams();
   const ID = riceLandId || id;
   const [isOffline, setIsOffline] = useState<boolean>(false);
-  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [targetLang, setTargetLang] = useState<string>("en"); // Default language
   const [translations, setTranslations] = useState({
     loading: "Loading...",
@@ -40,17 +40,17 @@ const NotesScreen: React.FC = () => {
     useCallback(() => {
       const loadLanguage = async () => {
         const storedLang = await AsyncStorage.getItem("selectedLanguage");
-        if (storedLang && storedLang !== targetLang) {
-          setTargetLang(storedLang); // Update targetLang if it has changed
+        if (storedLang) {
+          setTargetLang(storedLang);
         }
       };
       loadLanguage();
-    }, [targetLang]) // Re-run when targetLang changes
+    }, [])
   );
 
-  // Translate all text when targetLang changes
+  // Translate static UI text
   useEffect(() => {
-    const translateAll = async () => {
+    const translateUI = async () => {
       setIsTranslating(true);
       const keys = {
         loading: "Loading...",
@@ -71,46 +71,54 @@ const NotesScreen: React.FC = () => {
       for (const key in keys) {
         translated[key] = await translateText(keys[key], targetLang);
       }
-
       setTranslations(translated);
-      
+      await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5s delay
       setIsTranslating(false);
     };
 
-    translateAll();
-  }, [targetLang]); // Re-translate when targetLang changes
+    translateUI();
+  }, [targetLang]);
 
   // Check network connectivity
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOffline(!state.isConnected);
     });
-
     return () => unsubscribe();
   }, []);
 
-  // Fetch notes and translate them
+  // Fetch notes with caching logic
   const fetchNotes = async () => {
     setLoading(true);
     try {
       if (isOffline) {
-        const cachedNotesData = await AsyncStorage.getItem(`cachedNotesData_${ID}`);
-        if (cachedNotesData) {
-          setNotes(JSON.parse(cachedNotesData)); // Use cached data
+        // Offline mode: Retrieve cached translated notes
+        const cachedNotes = await AsyncStorage.getItem(`cachedNotesData_${ID}`);
+        if (cachedNotes) {
+          setNotes(JSON.parse(cachedNotes));
+        } else {
+          setNotes([]);
         }
       } else {
+        // Online mode: Fetch fresh data
         const response = await api.get(`/get_notes/${ID}/`);
+
+        // Translate only when online
         const translatedNotes = await Promise.all(
           response.data.map(async (note) => {
             const translatedTitle = await translateText(note.title, targetLang);
+
+            // Handle content array parsing
             const contentArray = typeof note.content === "string"
               ? JSON.parse(note.content)
               : note.content || [];
+
             const translatedContent = await Promise.all(
               contentArray.map(async (item) => {
                 return await translateText(item, targetLang);
               })
             );
+
             return {
               ...note,
               title: translatedTitle,
@@ -118,8 +126,11 @@ const NotesScreen: React.FC = () => {
             };
           })
         );
-        setNotes(translatedNotes); // Update state with translated notes
-        await AsyncStorage.setItem(`cachedNotesData_${ID}`, JSON.stringify(translatedNotes)); // Cache translated notes
+
+        setNotes(translatedNotes);
+
+        // Cache the translated notes
+        await AsyncStorage.setItem(`cachedNotesData_${ID}`, JSON.stringify(translatedNotes));
       }
     } catch (error) {
       console.error("Error fetching notes:", error);
@@ -133,7 +144,7 @@ const NotesScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       fetchNotes();
-    }, [id, riceLandId, isOffline, targetLang]) 
+    }, [id, riceLandId, isOffline, targetLang])
   );
 
   const deleteNote = async (noteId: number) => {

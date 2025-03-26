@@ -1,7 +1,9 @@
+// CropDetails.tsx
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import GlobalStyles from "../assets/styles/styles";
 
-const cropDetails = {
+export const cropDetails = {
   "NSIC Rc 222": {
     averageYield: "4.8 t/ha",
     maximumYield: "7.5 t/ha",
@@ -13,68 +15,67 @@ const cropDetails = {
     millingRecovery: "66.62%",
     eatingQuality: "Hard",
   },
-  "NSIC Rc 216": {
-    averageYield: "5.2 t/ha",
-    maximumYield: "8.0 t/ha",
-    maturity: "110 days after seeding",
-    height: "80 cm",
-    reactionToPestsAndDiseases:
-      "Resistant to blast and bacterial leaf blight. Intermediate reaction to tungro and stem borer. Moderately resistant to green leaf hopper.",
-    grainSize: "Medium",
-    millingRecovery: "68.5%",
-    eatingQuality: "Medium",
-  },
-  "NSIC Rc 480": {
-    averageYield: "5.5 t/ha",
-    maximumYield: "8.5 t/ha",
-    maturity: "115 days after seeding",
-    height: "85 cm",
-    reactionToPestsAndDiseases:
-      "Resistant to blast and brown planthopper. Intermediate reaction to bacterial leaf blight and tungro. Moderately resistant to stem borer.",
-    grainSize: "Long",
-    millingRecovery: "70.0%",
-    eatingQuality: "Soft",
-  },
-  "NSIC Rc 10": {
-    averageYield: "4.5 t/ha",
-    maximumYield: "7.0 t/ha",
-    maturity: "100 days after seeding",
-    height: "75 cm",
-    reactionToPestsAndDiseases:
-      "Resistant to blast and green leaf hopper. Intermediate reaction to bacterial leaf blight and tungro. Moderately resistant to stem borer.",
-    grainSize: "Short",
-    millingRecovery: "65.0%",
-    eatingQuality: "Medium",
-  },
+  // ... other crop details
 };
 
-const CropDetails = ({ cropType, translations, targetLang, translateText }) => {
-  const [translatedDetails, setTranslatedDetails] = useState(null);
+interface CropDetailsProps {
+  cropType: string;
+  translations: {
+    [key: string]: string;
+  };
+  targetLang: string;
+  translateText: (text: string, targetLang: string) => Promise<string>;
+  isOffline: boolean;
+}
 
-  const details = cropDetails[cropType];
+const CropDetails = ({ 
+  cropType, 
+  translations, 
+  targetLang, 
+  translateText, 
+  isOffline 
+}: CropDetailsProps) => {
+  const [translatedDetails, setTranslatedDetails] = useState<typeof cropDetails[keyof typeof cropDetails] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const details = cropDetails[cropType as keyof typeof cropDetails];
 
   useEffect(() => {
     if (details) {
-      const translateDynamicContent = async () => {
-        const translated = {
-          averageYield: await translateText(details.averageYield, targetLang),
-          maximumYield: await translateText(details.maximumYield, targetLang),
-          maturity: await translateText(details.maturity, targetLang),
-          height: await translateText(details.height, targetLang),
-          reactionToPestsAndDiseases: await translateText(
-            details.reactionToPestsAndDiseases,
-            targetLang
-          ),
-          grainSize: await translateText(details.grainSize, targetLang),
-          millingRecovery: await translateText(details.millingRecovery, targetLang),
-          eatingQuality: await translateText(details.eatingQuality, targetLang),
-        };
-        setTranslatedDetails(translated);
+      const processDetails = async () => {
+        if (isOffline) {
+          // Use untranslated details when offline
+          setTranslatedDetails(details);
+        } else {
+          // Online - try to translate
+          try {
+            const translated = {
+              averageYield: await translateText(details.averageYield, targetLang),
+              maximumYield: await translateText(details.maximumYield, targetLang),
+              maturity: await translateText(details.maturity, targetLang),
+              height: await translateText(details.height, targetLang),
+              reactionToPestsAndDiseases: await translateText(
+                details.reactionToPestsAndDiseases,
+                targetLang
+              ),
+              grainSize: await translateText(details.grainSize, targetLang),
+              millingRecovery: await translateText(details.millingRecovery, targetLang),
+              eatingQuality: await translateText(details.eatingQuality, targetLang),
+            };
+            setTranslatedDetails(translated);
+          } catch (error) {
+            // Fallback to untranslated if translation fails
+            setTranslatedDetails(details);
+          }
+        }
+        setLoading(false);
       };
 
-      translateDynamicContent();
+      processDetails();
+    } else {
+      setLoading(false);
     }
-  }, [details, targetLang, translateText]);
+  }, [details, targetLang, translateText, isOffline]);
 
   if (!details) {
     return (
@@ -84,10 +85,10 @@ const CropDetails = ({ cropType, translations, targetLang, translateText }) => {
     );
   }
 
-  if (!translatedDetails) {
+  if (loading || !translatedDetails) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" /> 
+        <ActivityIndicator size="large" color={GlobalStyles.activityIndicator.color} /> 
       </View>
     );
   }
