@@ -1,4 +1,3 @@
-// CropDetails.tsx
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import GlobalStyles from "../assets/styles/styles";
@@ -15,7 +14,39 @@ export const cropDetails = {
     millingRecovery: "66.62%",
     eatingQuality: "Hard",
   },
-  // ... other crop details
+  "NSIC Rc 216": {
+    averageYield: "5.2 t/ha",
+    maximumYield: "8.0 t/ha",
+    maturity: "110 days after seeding",
+    height: "80 cm",
+    reactionToPestsAndDiseases:
+      "Resistant to blast and bacterial leaf blight. Intermediate reaction to tungro and stem borer. Moderately resistant to green leaf hopper.",
+    grainSize: "Medium",
+    millingRecovery: "68.5%",
+    eatingQuality: "Medium",
+  },
+  "NSIC Rc 480": {
+    averageYield: "5.5 t/ha",
+    maximumYield: "8.5 t/ha",
+    maturity: "115 days after seeding",
+    height: "85 cm",
+    reactionToPestsAndDiseases:
+      "Resistant to blast and brown planthopper. Intermediate reaction to bacterial leaf blight and tungro. Moderately resistant to stem borer.",
+    grainSize: "Long",
+    millingRecovery: "70.0%",
+    eatingQuality: "Soft",
+  },
+  "NSIC Rc 10": {
+    averageYield: "4.5 t/ha",
+    maximumYield: "7.0 t/ha",
+    maturity: "100 days after seeding",
+    height: "75 cm",
+    reactionToPestsAndDiseases:
+      "Resistant to blast and green leaf hopper. Intermediate reaction to bacterial leaf blight and tungro. Moderately resistant to stem borer.",
+    grainSize: "Short",
+    millingRecovery: "65.0%",
+    eatingQuality: "Medium",
+  },
 };
 
 interface CropDetailsProps {
@@ -28,14 +59,16 @@ interface CropDetailsProps {
   isOffline: boolean;
 }
 
-const CropDetails = ({ 
-  cropType, 
-  translations, 
-  targetLang, 
-  translateText, 
-  isOffline 
+const CropDetails = ({
+  cropType,
+  translations,
+  targetLang,
+  translateText,
+  isOffline,
 }: CropDetailsProps) => {
-  const [translatedDetails, setTranslatedDetails] = useState<typeof cropDetails[keyof typeof cropDetails] | null>(null);
+  const [translatedDetails, setTranslatedDetails] = useState<
+    (typeof cropDetails)[keyof typeof cropDetails] | null
+  >(null);
   const [loading, setLoading] = useState(true);
 
   const details = cropDetails[cropType as keyof typeof cropDetails];
@@ -50,8 +83,14 @@ const CropDetails = ({
           // Online - try to translate
           try {
             const translated = {
-              averageYield: await translateText(details.averageYield, targetLang),
-              maximumYield: await translateText(details.maximumYield, targetLang),
+              averageYield: await translateText(
+                details.averageYield,
+                targetLang
+              ),
+              maximumYield: await translateText(
+                details.maximumYield,
+                targetLang
+              ),
               maturity: await translateText(details.maturity, targetLang),
               height: await translateText(details.height, targetLang),
               reactionToPestsAndDiseases: await translateText(
@@ -59,8 +98,14 @@ const CropDetails = ({
                 targetLang
               ),
               grainSize: await translateText(details.grainSize, targetLang),
-              millingRecovery: await translateText(details.millingRecovery, targetLang),
-              eatingQuality: await translateText(details.eatingQuality, targetLang),
+              millingRecovery: await translateText(
+                details.millingRecovery,
+                targetLang
+              ),
+              eatingQuality: await translateText(
+                details.eatingQuality,
+                targetLang
+              ),
             };
             setTranslatedDetails(translated);
           } catch (error) {
@@ -88,7 +133,10 @@ const CropDetails = ({
   if (loading || !translatedDetails) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={GlobalStyles.activityIndicator.color} /> 
+        <ActivityIndicator
+          size="large"
+          color={GlobalStyles.activityIndicator.color}
+        />
       </View>
     );
   }
@@ -104,8 +152,12 @@ const CropDetails = ({
       <Text style={styles.value}>{translatedDetails.maturity}</Text>
       <Text style={styles.label}>{translations.height}:</Text>
       <Text style={styles.value}>{translatedDetails.height}</Text>
-      <Text style={styles.label}>{translations.reactionToPestsAndDiseases}:</Text>
-      <Text style={styles.value}>{translatedDetails.reactionToPestsAndDiseases}</Text>
+      <Text style={styles.label}>
+        {translations.reactionToPestsAndDiseases}:
+      </Text>
+      <Text style={styles.value}>
+        {translatedDetails.reactionToPestsAndDiseases}
+      </Text>
       <Text style={styles.label}>{translations.grainSize}:</Text>
       <Text style={styles.value}>{translatedDetails.grainSize}</Text>
       <Text style={styles.label}>{translations.millingRecovery}:</Text>

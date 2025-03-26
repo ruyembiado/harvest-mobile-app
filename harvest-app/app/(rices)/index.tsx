@@ -18,14 +18,14 @@ import {
 } from "expo-router";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
 import CropDetails from "../../crop_types/CropDetails";
-import NetInfo from "@react-native-community/netinfo"; // Import NetInfo
-import AsyncStorage from "@react-native-async-storage/async-storage"; // Import AsyncStorage
-import translateText from "../../hooks/translateText"; // Import translation function
+import NetInfo from "@react-native-community/netinfo"; 
+import AsyncStorage from "@react-native-async-storage/async-storage"; 
+import translateText from "../../hooks/translateText";
 
 const Index: React.FC = () => {
   const [riceVariety, setRiceVariety] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [isOffline, setIsOffline] = useState<boolean>(false); // Track offline state
+  const [isOffline, setIsOffline] = useState<boolean>(false);
   const [riceLandId, setRiceLandId] = useState<number | null>(null);
   const [isTranslating, setIsTranslating] = useState<boolean>(true);
   const [targetLang, setTargetLang] = useState<string>("en");
@@ -51,20 +51,23 @@ const Index: React.FC = () => {
   const router = useRouter();
   const { rice_land_id } = useLocalSearchParams();
 
-  // Load the language from AsyncStorage when the screen comes into focus
+  // ✅ Load language preference on focus
   useFocusEffect(
     useCallback(() => {
       const loadLanguage = async () => {
-        const storedLang = await AsyncStorage.getItem("selectedLanguage");
-        if (storedLang && storedLang !== targetLang) {
-          setTargetLang(storedLang); // Update targetLang if it has changed
+        try {
+          const storedLang = await AsyncStorage.getItem("selectedLanguage");
+          if (storedLang && storedLang !== targetLang) {
+            setTargetLang(storedLang);
+          }
+        } catch (error) {
+          console.error("Failed to load language:", error);
         }
       };
       loadLanguage();
-    }, [targetLang]) // Re-run when targetLang changes
+    }, [targetLang])
   );
 
-  // Translate all text when targetLang changes
   useEffect(() => {
     const translateAll = async () => {
       setIsTranslating(true);
@@ -87,40 +90,46 @@ const Index: React.FC = () => {
         eatingQuality: "Eating Quality",
       };
 
-      const translated = {} as any;
-      for (const key in keys) {
-        translated[key] = await translateText(keys[key], targetLang);
-      }
+      try {
+        const translated = await Promise.all(
+          Object.entries(keys).map(async ([key, value]) => ({
+            [key]: await translateText(value, targetLang),
+          }))
+        );
 
-      setTranslations(translated);
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // 1.5s delay
-      setIsTranslating(false);
+        const translatedObj = translated.reduce(
+          (acc, curr) => ({ ...acc, ...curr }),
+          {}
+        );
+
+        setTranslations(translatedObj);
+      } catch (error) {
+        console.error("Translation failed:", error);
+      } finally {
+        setIsTranslating(false);
+      }
     };
 
     translateAll();
-  }, [targetLang]); // Re-translate when targetLang changes
+  }, [targetLang]);
 
-  // Load riceLandId from AsyncStorage
   useEffect(() => {
     const loadRiceLandId = async () => {
       try {
         const savedRiceLandId = await AsyncStorage.getItem("riceLandId");
         if (savedRiceLandId) {
-          const id = parseInt(savedRiceLandId, 10); // Convert string to number
+          const id = parseInt(savedRiceLandId, 10);
           if (!isNaN(id)) {
-            setRiceLandId(id); // Update the state
-            console.log("Rice Land ID loaded from AsyncStorage:", id);
+            setRiceLandId(id);
           }
         }
       } catch (error) {
-        // console.error("Failed to load riceLandId from AsyncStorage:", error);
+        console.error("Failed to load riceLandId:", error);
       }
     };
-
     loadRiceLandId();
   }, []);
 
-  // Check network connectivity
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       setIsOffline(!state.isConnected);
@@ -129,67 +138,41 @@ const Index: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch rice variety data
   const fetchRiceVariety = async () => {
     try {
+      setLoading(true);
+
       if (isOffline) {
-        // Offline mode: Retrieve cached data
-        const savedRiceVariety = await AsyncStorage.getItem(
+        const cachedData = await AsyncStorage.getItem(
           `cachedRiceVariety_${riceLandId}`
         );
 
-        console.log("Cached Rice Variety (Offline):", savedRiceVariety);
-
-        if (savedRiceVariety) {
-          const parsedData = JSON.parse(savedRiceVariety);
-          console.log("Parsed Rice Variety (Offline):", parsedData);
-
-          if (parsedData && parsedData.id && parsedData.rice_variety_name) {
-            setRiceVariety(parsedData);
-            // Alert.alert(
-            //   translations.offlineMode,
-            //   translations.displayingCachedData
-            // );
-          } else {
-            // console.error("Invalid cached rice variety data:", parsedData);
-            setRiceVariety(null);
-          }
+        if (cachedData) {
+          setRiceVariety(JSON.parse(cachedData));
         } else {
-          // console.log("No cached rice variety found.");
-          // Alert.alert(translations.offlineMode, translations.noCachedData);
-          // setRiceVariety(null);
+          Alert.alert(translations.offlineMode, translations.noCachedData);
+          setRiceVariety(null);
         }
       } else {
-        // Online mode: Fetch fresh data
         const user_id = await getUserIdOrLogout(router);
-        if (!user_id) return;
-        if (!rice_land_id) return;
-
-        console.log("Fetching rice variety for rice_land_id:", rice_land_id);
+        if (!user_id || !rice_land_id) return;
 
         const response = await api.get(`/get_rice_variety/${rice_land_id}`);
         if (response.status === 200) {
-          console.log("Rice Variety (Online):", response.data.variety);
-          setRiceVariety(response.data.variety);
+          const variety = response.data.variety;
 
-          // Save rice variety to AsyncStorage
           await AsyncStorage.setItem(
             `cachedRiceVariety_${rice_land_id}`,
-            JSON.stringify(response.data.variety)
+            JSON.stringify(variety)
           );
 
-          // Log the saved rice variety
-          const savedRiceVariety = await AsyncStorage.getItem(
-            `cachedRiceVariety_${rice_land_id}`
-          );
-          console.log("Saved Rice Variety (Online):", savedRiceVariety);
+          setRiceVariety(variety);
         } else {
-          // console.error("Error fetching rice variety:", response.data.error);
           setRiceVariety(null);
         }
       }
     } catch (error) {
-      // console.error("Network error:", error);
+      console.error("Failed to fetch rice variety:", error);
       setRiceVariety(null);
     } finally {
       setLoading(false);
@@ -202,7 +185,6 @@ const Index: React.FC = () => {
     }
   }, [riceLandId, isOffline]);
 
-  // Show loading indicator while translating or fetching data
   if (loading || isTranslating) {
     return (
       <View style={GlobalStyles.loadingContainer}>
@@ -217,53 +199,34 @@ const Index: React.FC = () => {
 
   return (
     <PaperProvider theme={customTheme}>
-      <View style={[GlobalStyles.TitleContainer]}>
-        <Text variant="headlineLarge" style={[GlobalStyles.title]}>
+      <View style={GlobalStyles.TitleContainer}>
+        <Text variant="headlineLarge" style={GlobalStyles.title}>
           {translations.riceVarietyTitle}
         </Text>
       </View>
       <Card style={GlobalStyles.RiceLandCard}>
         <Card.Content>
-          <View style={[GlobalStyles.RiceLandContainer]}>
-            <View>
-              {!riceVariety && (
-                <Button
-                  mode="contained"
-                  style={[GlobalStyles.addButton, { marginBottom: 20 }]}
-                >
-                  <Link href={`/(rices)/add_rice?rice_land_id=${rice_land_id}`}>
-                    {translations.addButton}
-                  </Link>
-                </Button>
-              )}
-              <ScrollView
-                contentContainerStyle={GlobalStyles.RiceLandScrollContainer}
-                showsVerticalScrollIndicator={false}
-              >
-                {riceVariety ? (
-                  <View key={riceVariety.id}>
-                    <CropDetails
-                      cropType={riceVariety.rice_variety_name}
-                      translations={translations}
-                      targetLang={targetLang}
-                      translateText={translateText}
-                      isOffline={isOffline} 
-                    />
-                  </View>
-                ) : (
-                  <View style={[GlobalStyles.noDataTextContainer]}>
-                    <Text style={[GlobalStyles.dataText]}>
-                      {translations.noRiceVariety}
-                    </Text>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-            <Button
-              icon="arrow-left"
-              mode="contained"
-              style={GlobalStyles.button}
+          <View style={GlobalStyles.RiceLandContainer}>
+            <ScrollView
+              contentContainerStyle={GlobalStyles.RiceLandScrollContainer}
+              showsVerticalScrollIndicator={false}
             >
+              {riceVariety ? (
+                <CropDetails
+                  cropType={riceVariety.rice_variety_name}
+                  translations={translations}
+                  targetLang={targetLang}
+                  translateText={translateText}
+                  isOffline={isOffline}
+                />
+              ) : (
+                <Text style={GlobalStyles.dataText}>
+                  {translations.noRiceVariety}
+                </Text>
+              )}
+            </ScrollView>
+            
+            <Button icon="arrow-left" mode="contained" style={GlobalStyles.button}>
               <Link href={`/(tabs)/?id=${rice_land_id}`}>
                 {translations.backButton}
               </Link>
