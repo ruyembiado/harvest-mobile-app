@@ -85,6 +85,14 @@ export default function Index() {
   const { id } = useLocalSearchParams();
   const navigation = useNavigation();
 
+  useEffect(() => {
+    if (rice_land_name) {
+      navigation.setOptions({
+        headerTitle: `${rice_land_name}`,
+      });
+    }
+  }, [navigation, rice_land_name]);
+
   // Cache translations when they're updated
   const cacheTranslations = async (translations: any, lang: string) => {
     try {
