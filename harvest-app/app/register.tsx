@@ -131,7 +131,18 @@ const Register: React.FC = () => {
       alert(translations.registrationSuccessful);
     } catch (error) {
       console.error("Registration error:", error);
-      Alert.alert(translations.registrationFailed, translations.tryAgain);
+
+      let errorMessage = translations.tryAgain;
+
+      if (
+        error.response &&
+        error.response.data &&
+        (error.response.data.error || error.response.data.message)
+      ) {
+        errorMessage = error.response.data.error || error.response.data.message;
+      }
+
+      Alert.alert(translations.registrationFailed, errorMessage);
     } finally {
       setLoading(false);
     }

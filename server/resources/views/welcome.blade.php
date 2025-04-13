@@ -831,25 +831,6 @@
 </head>
 
 <body class="antialiased">
-    <!-- Display Results -->
-    TEST
-
-    <?php
-    echo '<pre>';
-    print_r($generatedText);
-    echo '</pre>';
-    ?>
-    @if (isset($generatedText))
-        <div class="results">
-            <h3>Generated Growth Stages</h3>
-            <ul>
-                @foreach ($generatedText as $stage)
-                    <li><strong>{{ $stage['rice_growth_stage'] }}</strong> (Start:
-                        {{ $stage['rice_growth_stage_start'] }} - End: {{ $stage['rice_growth_stage_end'] }})</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
     <div
         class="relative sm:flex sm:justify-center sm:items-center min-h-screen bg-dots-darker bg-center bg-gray-100 dark:bg-dots-lighter dark:bg-gray-900 selection:bg-red-500 selection:text-white">
         @if (Route::has('login'))
