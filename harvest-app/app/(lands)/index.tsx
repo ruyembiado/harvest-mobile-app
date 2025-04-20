@@ -249,7 +249,7 @@ const Index: React.FC = () => {
                 </View>
               ))
             ) : (
-              <Text>{translations.noRiceLandsAvailable}</Text>
+              <Text style={{ textAlign: 'center' }}>{translations.noRiceLandsAvailable}</Text>
             )}
           </ScrollView>
         </Card.Content>

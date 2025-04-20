@@ -81,15 +81,15 @@ export default function Index() {
   });
 
   const stageIcons: { [key: string]: string } = {
-    Germination: "sprout",
+    "Germination": "sprout",
     "Seeding Establishment": "sprout-outline",
-    Tillering: "grass",
+    "Tillering": "grass",
     "Panicle Initiation": "leaf",
-    Booting: "leaf-maple",
-    Heading: "corn",
-    Flowering: "flower",
+    "Booting": "leaf-maple",
+    "Heading": "corn",
+    "Flowering": "flower",
     "Grain Filling": "wheat",
-    Maturity: "rice",
+    "Maturity": "rice",
   };
 
   const today = new Date().toISOString().split("T")[0];

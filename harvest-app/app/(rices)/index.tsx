@@ -18,8 +18,8 @@ import {
 } from "expo-router";
 import getUserIdOrLogout from "@/hooks/getUserIdOrLogout";
 import CropDetails from "../../crop_types/CropDetails";
-import NetInfo from "@react-native-community/netinfo"; 
-import AsyncStorage from "@react-native-async-storage/async-storage"; 
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import translateText from "../../hooks/translateText";
 
 const Index: React.FC = () => {
@@ -51,7 +51,6 @@ const Index: React.FC = () => {
   const router = useRouter();
   const { rice_land_id } = useLocalSearchParams();
 
-  // ✅ Load language preference on focus
   useFocusEffect(
     useCallback(() => {
       const loadLanguage = async () => {
@@ -206,7 +205,7 @@ const Index: React.FC = () => {
       </View>
       <Card style={GlobalStyles.RiceLandCard}>
         <Card.Content>
-          <View style={GlobalStyles.RiceLandContainer}>
+          <View style={(GlobalStyles.RiceLandContainer, { height: "95%" })}>
             <ScrollView
               contentContainerStyle={GlobalStyles.RiceLandScrollContainer}
               showsVerticalScrollIndicator={false}
@@ -220,13 +219,34 @@ const Index: React.FC = () => {
                   isOffline={isOffline}
                 />
               ) : (
-                <Text style={GlobalStyles.dataText}>
-                  {translations.noRiceVariety}
-                </Text>
+                <>
+                  <Button
+                    mode="contained"
+                    style={[
+                      GlobalStyles.addButton,
+                      { marginBottom: 20, width: "100%" },
+                    ]}
+                  >
+                    <Link
+                      href={`/(rices)/add_rice/?rice_land_id=${rice_land_id}`}
+                    >
+                      Add Rice Variety
+                    </Link>
+                  </Button>
+                  <Text
+                    style={(GlobalStyles.dataText, { textAlign: "center" })}
+                  >
+                    {translations.noRiceVariety}
+                  </Text>
+                </>
               )}
             </ScrollView>
-            
-            <Button icon="arrow-left" mode="contained" style={GlobalStyles.button}>
+
+            <Button
+              icon="arrow-left"
+              mode="contained"
+              style={GlobalStyles.button}
+            >
               <Link href={`/(tabs)/?id=${rice_land_id}`}>
                 {translations.backButton}
               </Link>

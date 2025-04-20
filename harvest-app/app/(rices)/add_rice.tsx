@@ -1,7 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, ScrollView, Platform, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  ScrollView,
+  Platform,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Provider as PaperProvider, Text, Button, ActivityIndicator } from "react-native-paper";
+import {
+  Provider as PaperProvider,
+  Text,
+  Button,
+  ActivityIndicator,
+} from "react-native-paper";
 import { Picker } from "@react-native-picker/picker";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import GlobalStyles from "../../assets/styles/styles";
@@ -95,25 +106,39 @@ const AddRice: React.FC = () => {
 
   // Handle adding rice variety
   const handleAddRiceVariety = async () => {
-    if (!rice_variety_name) {
-      alert(translations.riceVarietyRequired);
-      return;
-    }
-    if (!planting_date) {
-      alert(translations.plantingDateRequired);
-      return;
-    }
-
-    // Format the date to "YYYY-MM-DD"
-    const formattedDate = planting_date.toISOString().split("T")[0];
-    console.log(formattedDate);
-
-    setLoading(true);
-
     try {
+      // Input validation
+      if (!rice_variety_name) {
+        Alert.alert("Error", translations.riceVarietyRequired);
+        return;
+      }
+      if (!planting_date) {
+        Alert.alert("Error", translations.plantingDateRequired);
+        return;
+      }
+
+      setLoading(true);
+
+      // Get user ID
       const user_id = await getUserIdOrLogout(router);
-      if (!user_id) return;
-      if (!rice_land_id) return;
+      if (!user_id) {
+        console.log("No user ID - possibly logged out");
+        return;
+      }
+
+      if (!rice_land_id) {
+        console.log("No rice_land_id provided");
+        Alert.alert("Error", "No rice land selected");
+        return;
+      }
+
+      // Format the date to "YYYY-MM-DD"
+      const formattedDate = planting_date.toISOString().split("T")[0];
+      console.log("Adding rice variety with data:", {
+        rice_land_id,
+        rice_variety_name,
+        planting_date: formattedDate,
+      });
 
       // Step 1: Add the rice variety with planting date
       const response = await api.post("/add_rice_variety", {
@@ -121,35 +146,48 @@ const AddRice: React.FC = () => {
         rice_variety_name,
       });
 
-      if (response.data.status === "success") {
-        alert(translations.riceVarietyAdded);
+      console.log("Add rice variety response:", response.data);
 
-        // Step 2: Generate growth stage schedule
-        const scheduleResponse = await api.post(
-          "/generate_stage_growth_schedule",
-          {
-            rice_variety_name,
-            rice_land_id,
-            planting_date: formattedDate,
-          }
-        );
-
-        if (scheduleResponse.data.status === "success") {
-          alert(translations.growthStageGenerated);
-          console.log("Generated Schedule:", scheduleResponse.data.data);
-        } else {
-          alert(
-            translations.failedToGenerateSchedule + scheduleResponse.data.message
-          );
-        }
-
-        router.replace(`/(rices)?rice_land_id=${rice_land_id}`);
-      } else {
-        alert(translations.addFailed);
+      if (response.data.status !== "success") {
+        Alert.alert("Error", translations.addFailed);
+        return;
       }
+
+      Alert.alert("Success", translations.riceVarietyAdded);
+
+      // Step 2: Generate growth stage schedule
+      const scheduleResponse = await api.post(
+        "/generate_stage_growth_schedule",
+        {
+          rice_variety_name,
+          rice_land_id,
+          planting_date: formattedDate,
+        }
+      );
+
+      console.log("Generate schedule response:", scheduleResponse.data);
+
+      if (scheduleResponse.data.status === "success") {
+        Alert.alert("Success", translations.growthStageGenerated);
+        console.log("Generated Schedule:", scheduleResponse.data.data);
+      } else {
+        Alert.alert(
+          "Warning",
+          translations.failedToGenerateSchedule + scheduleResponse.data.message
+        );
+      }
+
+      // Navigate back
+      router.replace({
+        pathname: "/(rices)",
+        params: { rice_land_id: rice_land_id.toString() },
+      });
     } catch (error) {
       console.error("Add error:", error);
-      alert(translations.addFailed);
+      Alert.alert(
+        "Error",
+        translations.addFailed + "\n" + (error as Error).message
+      );
     } finally {
       setLoading(false);
     }

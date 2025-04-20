@@ -139,7 +139,6 @@ class RiceLandController extends Controller
         }
     }
 
-
     public function update_rice_land_stage(Request $request)
     {
         $request->validate([

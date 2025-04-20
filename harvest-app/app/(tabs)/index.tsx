@@ -1,12 +1,22 @@
 import { View, Alert, ScrollView } from "react-native";
-import { useRouter, useLocalSearchParams, Link, useFocusEffect } from "expo-router";
+import {
+  useRouter,
+  useLocalSearchParams,
+  Link,
+  useFocusEffect,
+} from "expo-router";
 import React, { useState, useEffect, useCallback } from "react";
 import api from "@/services/api";
 import GlobalStyles from "@/assets/styles/styles";
 import customTheme from "@/assets/styles/theme";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { useNavigation } from "@react-navigation/native";
-import { Text, Button, ActivityIndicator, PaperProvider } from "react-native-paper";
+import {
+  Text,
+  Button,
+  ActivityIndicator,
+  PaperProvider,
+} from "react-native-paper";
 import * as Location from "expo-location";
 import { useRiceLand } from "../../context/RiceLandContext";
 import NetInfo from "@react-native-community/netinfo";
@@ -30,7 +40,8 @@ export default function Index() {
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [targetLang, setTargetLang] = useState<string>("en");
-  
+  const [isUpdatingStage, setIsUpdatingStage] = useState(false);
+
   // Default English translations
   const [translations, setTranslations] = useState({
     fetchingPlace: "Fetching place...",
@@ -63,7 +74,10 @@ export default function Index() {
 
   const [riceLandConditions, setRiceLandConditions] = useState([
     { label: translations.selectCondition, value: "" },
-    { label: translations.irrigatedLowlandRice, value: "Irrigated Lowland Rice" },
+    {
+      label: translations.irrigatedLowlandRice,
+      value: "Irrigated Lowland Rice",
+    },
     { label: translations.rainfedLowlandRice, value: "Rainfed Lowland Rice" },
     { label: translations.uplandRice, value: "Upland Rice" },
   ]);
@@ -71,7 +85,10 @@ export default function Index() {
   const [riceLandStages, setRiceLandStages] = useState([
     { label: translations.notYetStarted, value: "Not Yet Started" },
     { label: translations.germination, value: "Germination" },
-    { label: translations.seedingEstablishment, value: "Seeding Establishment" },
+    {
+      label: translations.seedingEstablishment,
+      value: "Seeding Establishment",
+    },
     { label: translations.tillering, value: "Tillering" },
     { label: translations.panicleInitiation, value: "Panicle Initiation" },
     { label: translations.booting, value: "Booting" },
@@ -96,7 +113,10 @@ export default function Index() {
   // Cache translations when they're updated
   const cacheTranslations = async (translations: any, lang: string) => {
     try {
-      await AsyncStorage.setItem(`translations_${lang}`, JSON.stringify(translations));
+      await AsyncStorage.setItem(
+        `translations_${lang}`,
+        JSON.stringify(translations)
+      );
     } catch (error) {
       console.error("Error caching translations:", error);
     }
@@ -105,7 +125,9 @@ export default function Index() {
   // Load cached translations
   const loadCachedTranslations = async (lang: string) => {
     try {
-      const cachedTranslations = await AsyncStorage.getItem(`translations_${lang}`);
+      const cachedTranslations = await AsyncStorage.getItem(
+        `translations_${lang}`
+      );
       if (cachedTranslations) {
         return JSON.parse(cachedTranslations);
       }
@@ -120,7 +142,10 @@ export default function Index() {
   const updateConditionAndStageLabels = (translated: any) => {
     setRiceLandConditions([
       { label: translated.selectCondition, value: "" },
-      { label: translated.irrigatedLowlandRice, value: "Irrigated Lowland Rice" },
+      {
+        label: translated.irrigatedLowlandRice,
+        value: "Irrigated Lowland Rice",
+      },
       { label: translated.rainfedLowlandRice, value: "Rainfed Lowland Rice" },
       { label: translated.uplandRice, value: "Upland Rice" },
     ]);
@@ -128,7 +153,10 @@ export default function Index() {
     setRiceLandStages([
       { label: translated.notYetStarted, value: "Not Yet Started" },
       { label: translated.germination, value: "Germination" },
-      { label: translated.seedingEstablishment, value: "Seeding Establishment" },
+      {
+        label: translated.seedingEstablishment,
+        value: "Seeding Establishment",
+      },
       { label: translated.tillering, value: "Tillering" },
       { label: translated.panicleInitiation, value: "Panicle Initiation" },
       { label: translated.booting, value: "Booting" },
@@ -174,7 +202,7 @@ export default function Index() {
   // Handle translations
   const handleTranslations = async (lang: string) => {
     setIsTranslating(true);
-    
+
     // Default English translations
     const keys = {
       fetchingPlace: "Fetching place...",
@@ -209,9 +237,11 @@ export default function Index() {
       // Only translate if online
       if (!isOffline) {
         // Translate all keys in parallel
-        const translationPromises = Object.entries(keys).map(async ([key, value]) => {
-          return { key, value: await translateText(value, lang) };
-        });
+        const translationPromises = Object.entries(keys).map(
+          async ([key, value]) => {
+            return { key, value: await translateText(value, lang) };
+          }
+        );
 
         const translatedEntries = await Promise.all(translationPromises);
         const translated = translatedEntries.reduce((acc, { key, value }) => {
@@ -229,7 +259,7 @@ export default function Index() {
       setTranslations(keys);
       updateConditionAndStageLabels(keys);
     } finally {
-      await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5s delay
+      await new Promise((resolve) => setTimeout(resolve, 1500)); // 1.5s delay
       setIsTranslating(false);
     }
   };
@@ -241,7 +271,9 @@ export default function Index() {
     try {
       if (isOffline) {
         // Offline mode: Retrieve cached data
-        const cachedRiceLand = await AsyncStorage.getItem(`cachedRiceLand_${id}`);
+        const cachedRiceLand = await AsyncStorage.getItem(
+          `cachedRiceLand_${id}`
+        );
         if (cachedRiceLand) {
           const data = JSON.parse(cachedRiceLand);
           setRiceLandData(data);
@@ -256,7 +288,10 @@ export default function Index() {
         setRiceLandData(data);
 
         // Cache the fetched data
-        await AsyncStorage.setItem(`cachedRiceLand_${id}`, JSON.stringify(data));
+        await AsyncStorage.setItem(
+          `cachedRiceLand_${id}`,
+          JSON.stringify(data)
+        );
       }
     } catch (error) {
       // console.error("Error fetching land details:", error);
@@ -285,7 +320,9 @@ export default function Index() {
     try {
       if (isOffline) {
         // Offline mode: Retrieve cached data
-        const cachedWeatherData = await AsyncStorage.getItem(`cachedWeatherData_${id}`);
+        const cachedWeatherData = await AsyncStorage.getItem(
+          `cachedWeatherData_${id}`
+        );
         if (cachedWeatherData) {
           setWeatherData(JSON.parse(cachedWeatherData));
           // Alert.alert(translations.offlineMode, translations.displayingCachedData);
@@ -329,7 +366,9 @@ export default function Index() {
       if (result.length > 0) {
         let place = result[0];
         setPlaceName(
-          `${place.city || "Unknown place"}, ${place.region || "Unknown region"}, ${place.country || "Unknown country"}`
+          `${place.city || "Unknown place"}, ${
+            place.region || "Unknown region"
+          }, ${place.country || "Unknown country"}`
         );
       } else {
         setPlaceName(translations.fetchingPlace);
@@ -344,9 +383,12 @@ export default function Index() {
     if (rice_land_lat && rice_land_long) {
       // Run these in parallel
       Promise.all([
-        reverseGeocodeExpo(parseFloat(rice_land_lat), parseFloat(rice_land_long)),
-        fetchWeatherData()
-      ]).catch(error => {
+        reverseGeocodeExpo(
+          parseFloat(rice_land_lat),
+          parseFloat(rice_land_long)
+        ),
+        fetchWeatherData(),
+      ]).catch((error) => {
         console.error("Error in parallel operations:", error);
       });
     }
@@ -389,6 +431,42 @@ export default function Index() {
     month: "long",
     day: "numeric",
   });
+
+  const updateRiceLandStage = async (riceLandId: string, date: string) => {
+    try {
+      const response = await api.post("/update_rice_land_stage_today", {
+        id: riceLandId,
+        today: date,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error updating rice land stage:", error);
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    const updateStage = async () => {
+      if (!riceLandId) return;
+
+      setIsUpdatingStage(true);
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const result = await updateRiceLandStage(riceLandId, today);
+
+        if (result.status === "success") {
+          setRiceLandStage(result.new_stage);
+          console.log("Stage updated to:", result.new_stage);
+        }
+      } catch (error) {
+        console.error("Stage update failed:", error);
+      } finally {
+        setIsUpdatingStage(false);
+      }
+    };
+
+    updateStage();
+  }, [riceLandId]);
 
   if (isTranslating) {
     return (
