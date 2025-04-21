@@ -23,7 +23,8 @@ const Index: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [targetLang, setTargetLang] = useState<string>("");
-  const [isTranslating, setIsTranslating] = useState<boolean>(true); // New state for loading translation
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [translations, setTranslations] = useState({
     email: "",
     password: "",
@@ -203,8 +204,14 @@ const Index: React.FC = () => {
               onChangeText={setPassword}
               mode="outlined"
               style={GlobalStyles.input}
-              secureTextEntry
+              secureTextEntry={!isPasswordVisible}
               autoCapitalize="none"
+              right={
+                <TextInput.Icon
+                  icon={isPasswordVisible ? "eye-off" : "eye"}
+                  onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                />
+              }
             />
             <Button
               icon="login"

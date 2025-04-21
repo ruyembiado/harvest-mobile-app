@@ -23,7 +23,8 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [targetLang, setTargetLang] = useState<string>("");
-  const [isTranslating, setIsTranslating] = useState<boolean>(true); // New state for loading translation
+  const [isTranslating, setIsTranslating] = useState<boolean>(true);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [translations, setTranslations] = useState({
     email: "",
     password: "",
@@ -43,7 +44,25 @@ const Login: React.FC = () => {
 
   const router = useRouter();
 
-  useEffect(() => { 
+  // Check for stored credentials and auto-login
+  useEffect(() => {
+    const loadAuth = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem("authToken");
+        const storedLang = await AsyncStorage.getItem("selectedLanguage");
+
+        if (storedToken) {
+          // Auto-login if token exists
+          router.replace(storedLang ? "/(lands)" : "/(languages)");
+        }
+      } catch (error) {
+        console.error("Error loading auth:", error);
+      }
+    };
+    loadAuth();
+  }, []);
+
+  useEffect(() => {
     const initializeLanguage = async () => {
       try {
         const storedLang =
@@ -185,8 +204,14 @@ const Login: React.FC = () => {
               onChangeText={setPassword}
               mode="outlined"
               style={GlobalStyles.input}
-              secureTextEntry
+              secureTextEntry={!isPasswordVisible}
               autoCapitalize="none"
+              right={
+                <TextInput.Icon
+                  icon={isPasswordVisible ? "eye-off" : "eye"}
+                  onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                />
+              }
             />
             <Button
               icon="login"
