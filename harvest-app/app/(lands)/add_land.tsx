@@ -124,7 +124,7 @@ const AddLand: React.FC = () => {
       alert(translations.locationRequired);
       return;
     }
-    if (!rice_land_size && rice_land_size_sqm) {
+    if (!rice_land_size && !rice_land_size_sqm) {
       alert(translations.landSizeRequired);
       return;
     }
