@@ -82,8 +82,8 @@ class RiceLandController extends Controller
                 'rice_land_name' => $validatedData['rice_land_name'],
                 'rice_land_lat' => $validatedData['rice_land_lat'],
                 'rice_land_long' => $validatedData['rice_land_long'],
-                'rice_land_size' => $validatedData['rice_land_size'],
-                'rice_land_size_sqm' =>  $validatedData['rice_land_size_sqm'],
+                'rice_land_size' => $validatedData['rice_land_size'] ?? '',
+                'rice_land_size_sqm' => $validatedData['rice_land_size_sqm'] ?? '',
                 'rice_land_condition' => $validatedData['rice_land_condition'],
                 'rice_land_current_stage' => $validatedData['rice_land_current_stage'],
             ]);
