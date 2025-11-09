@@ -1,5 +1,5 @@
 const translateText = async (text: string, targetLang: string): Promise<string> => {
-  const apiKey = "AIzaSyBOCU75s8epi2_S7EMtAeYYoYDCLlT42sI";
+  const apiKey = "";
   const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
 
   const body = JSON.stringify({
